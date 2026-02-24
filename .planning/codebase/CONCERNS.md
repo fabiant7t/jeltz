@@ -12,12 +12,6 @@
 
 ## Known Bugs
 
-**README Go version requirement disagrees with module target:**
-- Symptoms: docs state Go 1.26+ while module declares `go 1.25.0`.
-- Files: `README.md`, `go.mod`
-- Trigger: new contributors follow README literally.
-- Workaround: trust `go.mod` as source of truth until README is updated.
-
 ## Security Considerations
 
 **Fixed PKCS#12 password is intentionally non-secret:**
@@ -70,12 +64,6 @@
 - Blocks: Not applicable.
 
 ## Test Coverage Gaps
-
-**No direct tests for hop-by-hop header utility package alone:**
-- What's not tested: standalone unit coverage for `RemoveHopByHop` in isolation.
-- Files: `internal/httpx/hopbyhop.go`
-- Risk: low-medium; regressions are partially covered indirectly through proxy tests.
-- Priority: Low
 
 ---
 
