@@ -26,31 +26,41 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 
 ### Active
 
-- [ ] Config file is read exactly once on startup; the single in-memory byte slice is shared across Viper initialisation, strict `KnownFields` validation, and rule struct parsing
+- [ ] `handleForward` (plain HTTP forward handler) has isolated unit tests covering the no-pipeline fallback and the pipeline-integrated path
+- [ ] `rawTunnel` (non-MITM CONNECT TCP fallback) has unit tests covering the bidirectional copy logic
 
 ### Out of Scope
 
-- Upstream transport timeouts — not requested for this cycle
-- `map_local` streaming via `http.ServeContent` — not requested for this cycle
-- `io.TeeReader` fix for `-dump-traffic` truncation — not requested for this cycle
-- Per-host cert cache eviction — not requested for this cycle
-- Windows build target — not requested for this cycle
+- Upstream transport timeouts — not requested
+- `map_local` streaming via `http.ServeContent` — not requested
+- `io.TeeReader` fix for `-dump-traffic` truncation — not requested
+- Per-host cert cache eviction — not requested
+- Windows build target — not requested
+
+## Current Milestone: v1.1 — Proxy Handler Tests
+
+**Goal:** Close the test coverage gap on the two untested proxy handlers in `internal/proxy/proxy.go`.
+
+**Target features:**
+- Unit tests for `handleForward` (no-pipeline fallback + pipeline path)
+- Unit tests for `rawTunnel` (bidirectional TCP copy, connection cleanup)
 
 ## Context
 
-Brownfield Go project. Codebase mapped 2026-02-24. Config loading is the only active improvement target. The fix is confined to `internal/config/config.go`: read the YAML file once into `[]byte`, feed that slice to Viper (via `viper.SetConfigType` + `viper.ReadConfig(bytes.NewReader(raw))`), to `yaml.Decoder` with `KnownFields(true)` for strict validation, and to `yaml.Unmarshal` for rule struct parsing.
+Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
 
 ## Constraints
 
-- **Tech stack**: Go only — no new direct dependencies
-- **Scope**: Changes confined to `internal/config/config.go`; public API (`config.Load` signature) unchanged
+- **Tech stack**: Go stdlib `testing` + `net/http/httptest` only — no new dependencies
+- **Scope**: New test file `internal/proxy/proxy_test.go`; no changes to production code
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Fix config triple-read before other concerns | Smallest change, zero risk of regression, cleanest starting point | — Pending |
-| Keep `config.Load` signature unchanged | Callers (`cmd/jeltz/main.go`) must not need updating | — Pending |
+| Config triple-read fixed (v1.0) | Single `os.ReadFile`, shared `[]byte` | ✓ Good |
+| `config.Load` signature unchanged (v1.0) | Callers need no update | ✓ Good |
+| Test via `ServeHTTP` (v1.1) | `handleForward`/`rawTunnel` are unexported; test through public surface | — Pending |
 
 ---
-*Last updated: 2026-02-24 after initialization*
+*Last updated: 2026-02-24 after milestone v1.1 started*

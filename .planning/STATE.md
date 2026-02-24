@@ -8,35 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Config read-once refactor — complete. CONF-01 satisfied.
+**Current focus:** Milestone v1.1 — tests for `handleForward` and `rawTunnel` proxy handlers.
 
 ---
 
 ## Current Position
 
-**Phase:** 1 — Config Read-Once Refactor
-**Plan:** 01 — Complete
-**Status:** Milestone complete
-
-```
-Progress: [====================] 100%
-Phase 1/1
-```
-
----
-
-## Performance Metrics
-
-| Metric | Value |
-|--------|-------|
-| Phases defined | 1 |
-| Phases complete | 1 |
-| Requirements total | 1 |
-| Requirements complete | 1 |
-
-| Plan | Duration | Tasks | Files |
-|------|----------|-------|-------|
-| Phase 01-config-read-once-refactor P01 | 1min | 2 tasks | 1 files |
+**Phase:** Not started (defining requirements)
+**Plan:** —
+**Status:** Defining requirements
+**Last activity:** 2026-02-24 — Milestone v1.1 started
 
 ---
 
@@ -46,23 +27,15 @@ Phase 1/1
 
 | Decision | Rationale |
 |----------|-----------|
-| Single phase for this cycle | One requirement, one file, one delivery boundary |
-| Public API unchanged | `config.Load` signature must remain the same; callers in `cmd/jeltz/main.go` must not need updating |
-| Use v.SetConfigType("yaml") + v.ReadConfig(bytes.NewReader(rawYAML)) | Allows Viper to consume already-read bytes instead of re-opening the file via v.SetConfigFile + v.ReadInConfig |
-| Preserve os.Stat guard before os.ReadFile | Retains user-facing "config file %q not found" error message |
+| Config triple-read fixed (v1.0) | Single `os.ReadFile`, shared `[]byte` via `v.ReadConfig(bytes.NewReader(rawYAML))` |
+| `config.Load` signature unchanged | Callers in `cmd/jeltz/main.go` need no update |
+| Test via `ServeHTTP` surface | `handleForward`/`rawTunnel` are unexported; tests must drive them through the exported handler |
 
 ### Active Constraints
 
-- Go only — no new direct dependencies
-- Changes confined to `internal/config/config.go`
-- `config.Load` signature unchanged
-
-### Implementation Notes
-
-- Config read with `os.ReadFile` once into `rawYAML []byte`
-- `bytes.NewReader(rawYAML)` fed to `v.SetConfigType("yaml")` + `v.ReadConfig`
-- `bytes.NewReader(rawYAML)` fed to `yaml.NewDecoder` with `KnownFields(true)` for strict validation
-- `rawYAML` fed directly to `yaml.Unmarshal` for rule struct parsing
+- Go stdlib `testing` + `net/http/httptest` only — no new dependencies
+- New file: `internal/proxy/proxy_test.go`
+- No changes to production code
 
 ### Blockers
 
@@ -70,17 +43,8 @@ None.
 
 ### Todos
 
-- [x] Plan Phase 1
-- [x] Execute Phase 1 Plan 01 (CONF-01)
-
----
-
-## Session Continuity
-
-**Last session:** 2026-02-24T17:25:36Z–2026-02-24T17:26:56Z
-**Stopped at:** Completed 01-config-read-once-refactor-01-PLAN.md
-
-**To resume:** All planned work is complete. No further phases defined.
+- [ ] Plan Phase 2
+- [ ] Execute Phase 2
 
 ---
 
