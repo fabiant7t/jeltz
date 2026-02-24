@@ -56,7 +56,7 @@ type RawOps struct {
 type RawDeleteOp struct {
 	Name       string `yaml:"name,omitempty"`
 	AnyName    bool   `yaml:"any_name,omitempty"`
-	ValueRegex string `yaml:"value_regex,omitempty"`
+	ValueRegex string `yaml:"value,omitempty"`
 }
 
 // RawSetOp is a single header set operation.

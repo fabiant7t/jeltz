@@ -120,11 +120,11 @@ func CompileOps(raw *config.RawOps) (*Ops, error) {
 func compileDeleteOp(rd config.RawDeleteOp) (DeleteOp, error) {
 	if rd.AnyName {
 		if rd.ValueRegex == "" {
-			return DeleteOp{}, fmt.Errorf("any_name delete requires value_regex")
+			return DeleteOp{}, fmt.Errorf("any_name delete requires value")
 		}
 		re, err := regexp.Compile(rd.ValueRegex)
 		if err != nil {
-			return DeleteOp{}, fmt.Errorf("value_regex %q: %w", rd.ValueRegex, err)
+			return DeleteOp{}, fmt.Errorf("value %q: %w", rd.ValueRegex, err)
 		}
 		return DeleteOp{AnyName: true, ValueRegex: re}, nil
 	}
@@ -136,7 +136,7 @@ func compileDeleteOp(rd config.RawDeleteOp) (DeleteOp, error) {
 		var err error
 		re, err = regexp.Compile(rd.ValueRegex)
 		if err != nil {
-			return DeleteOp{}, fmt.Errorf("value_regex %q: %w", rd.ValueRegex, err)
+			return DeleteOp{}, fmt.Errorf("value %q: %w", rd.ValueRegex, err)
 		}
 	}
 	return DeleteOp{Name: rd.Name, ValueRegex: re}, nil

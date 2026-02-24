@@ -138,7 +138,7 @@ func TestCompileOps_AnyNameWithoutValueRegex(t *testing.T) {
 		Delete: []config.RawDeleteOp{{AnyName: true}},
 	})
 	if err == nil {
-		t.Fatal("expected error: any_name requires value_regex")
+		t.Fatal("expected error: any_name requires value")
 	}
 }
 

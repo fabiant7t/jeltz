@@ -162,10 +162,10 @@ Transforms request and/or response headers for matching traffic.
   request:
     delete:
       - name: "Cookie"              # delete all values of this header
-      - name: "Cookie"              # delete only values matching value_regex
-        value_regex: "^session="
+      - name: "Cookie"              # delete only values matching the pattern
+        value: "^session="
       - any_name: true              # delete values matching regex across ALL headers
-        value_regex: "^GDPR=$"
+        value: "^GDPR=$"
     set:
       - name: "X-Debug"
         mode: replace               # replace: overwrite any existing values
@@ -185,8 +185,10 @@ Transforms request and/or response headers for matching traffic.
 | Fields | Behaviour |
 |---|---|
 | `name: "Foo"` | Remove all values of header `Foo` |
-| `name: "Foo"`, `value_regex: "bar"` | Remove only values of `Foo` matching the regex; keep the rest |
-| `any_name: true`, `value_regex: "bar"` | Remove any value matching the regex across every header name |
+| `name: "Foo"`, `value: "^bar"` | Remove only values of `Foo` matching the regex pattern; keep the rest |
+| `any_name: true`, `value: "^bar"` | Remove any value matching the regex pattern across every header name |
+
+`value` in a delete op is a **regex pattern**. `value` in a set op is a **literal string**.
 
 Delete ops run before set ops within the same block.
 
@@ -240,7 +242,7 @@ rules:
     request:
       delete:
         - any_name: true
-          value_regex: "^gdpr_consent="
+          value: "^gdpr_consent="
 
   # Add a debug header and strip X-Powered-By from responses to the API
   - type: header
