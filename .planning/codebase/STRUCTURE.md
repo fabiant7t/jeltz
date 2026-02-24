@@ -2,142 +2,110 @@
 
 **Analysis Date:** 2026-02-24
 
-## Top-level Layout
+## Directory Layout
 
-```
-jeltz/                         # Module root: github.com/fabiant7t/jeltz
-├── cmd/
-│   └── jeltz/                 # Main binary entry point
-│       ├── main.go            # CLI parsing, startup orchestration, subcommands
-│       └── banner.go          # Startup banner rendering (ANSI color, version info)
-├── internal/                  # Application-internal packages (not importable externally)
-│   ├── ca/                    # Root CA lifecycle: load/generate/cache leaf certs
-│   ├── config/                # Config loading: YAML + Viper + env + CLI overrides
-│   ├── httpx/                 # Shared HTTP utilities (hop-by-hop header stripping)
-│   ├── logging/               # slog setup and stable key constants
-│   ├── proxy/                 # HTTP/HTTPS proxy server, MITM handler, pipeline
-│   └── rules/                 # Rule engine: match, header ops, map-local serving
-├── pkg/                       # Pure, reusable library packages (no internal imports)
-│   ├── ca/                    # Crypto primitives: GenerateCA, IssueLeaf
-│   ├── p12/                   # Pure-Go PKCS#12 (PFX) encoder
-│   └── xdg/                   # XDG Base Directory resolution
-├── go.mod                     # Module declaration, Go 1.25+, direct dependencies
-├── go.sum                     # Dependency checksums
-├── Makefile                   # build, test, race, lint, clean, release targets
-├── .goreleaser.yaml           # Release build config (linux/darwin, amd64/arm64)
-├── README.md                  # User-facing documentation
-├── LICENSE                    # License file
-└── .gitignore
+```text
+jeltz/
+├── cmd/jeltz/              # CLI entrypoint, flags, subcommands, banner
+├── internal/ca/            # CA lifecycle and leaf cert caching
+├── internal/config/        # YAML/env/CLI config resolution
+├── internal/proxy/         # Server, MITM, request pipeline
+├── internal/rules/         # Rule compilation and evaluation
+├── internal/httpx/         # HTTP header utility helpers
+├── internal/logging/       # slog setup and stable key names
+├── pkg/ca/                 # Pure certificate generation primitives
+├── pkg/p12/                # PKCS#12 encoding implementation
+├── pkg/xdg/                # XDG path resolution helpers
+├── .github/workflows/      # CI workflows
+├── .planning/codebase/     # Maintained analysis documents
+├── go.mod                  # Module dependencies
+├── Makefile                # Build/test/release commands
+└── README.md               # User and operator documentation
 ```
 
-## Key Files
+## Directory Purposes
 
-**Entry point:**
-- `cmd/jeltz/main.go` — `func main()`: parses CLI flags, resolves XDG dirs, loads config, loads CA, compiles rules, starts the proxy server. Also contains `runCAPath()`, `runCAP12Path()`, `runCAInstallHint()` subcommand functions.
-- `cmd/jeltz/banner.go` — `printBanner()`: renders the startup summary to stderr with optional ANSI color. Reads build-time variables (`version`, `buildDate`, `gitRevision`) injected via `-ldflags`.
+**`cmd/jeltz/`:**
+- Purpose: executable behavior and CLI surface
+- Contains: `main.go`, banner rendering (`banner.go`), CLI tests (`*_test.go`)
+- Key files: `cmd/jeltz/main.go`, `cmd/jeltz/cli_output_test.go`
 
-**Proxy core:**
-- `internal/proxy/proxy.go` — `Server` struct, `ListenAndServe`, `ServeHTTP`, `handleCONNECT`, `handleForward`, `rawTunnel`. Defines the `caLoader` interface.
-- `internal/proxy/mitm.go` — `mitmHandler`, `serveH2`, `serveHTTP1`, `writeHTTP1Response`. TLS interception and per-protocol request serving.
-- `internal/proxy/pipeline.go` — `FlowContext`, `ResponseResult`, `Pipeline`, `Pipeline.Run`. The complete request→response processing chain including rule application, local file serving, and upstream round-trip.
+**`internal/proxy/`:**
+- Purpose: HTTP proxy runtime, MITM handling, and flow pipeline
+- Contains: request handlers (`proxy.go`), MITM ALPN paths (`mitm.go`), flow pipeline (`pipeline.go`)
+- Key files: `internal/proxy/proxy.go`, `internal/proxy/pipeline.go`, `internal/proxy/mitm.go`
 
-**Rule engine:**
-- `internal/rules/rules.go` — `FlowMeta`, `Match`, `CompileMatch`. Core matching types.
-- `internal/rules/ruleset.go` — `RuleSet`, `Compile`. Dispatches raw config rules to typed compiled forms.
-- `internal/rules/headers.go` — `Ops`, `DeleteOp`, `SetOp`, `CompileOps`, `Apply`. Header mutation operations.
-- `internal/rules/maplocal.go` — `MapLocalRule`, `MapLocalResult`, `CompileMapLocalRule`, `Resolve`, `DetectContentType`. Filesystem serving with traversal protection.
+**`internal/rules/`:**
+- Purpose: compile YAML rules and evaluate request/response/header/map_local behavior
+- Contains: rule compilation and operation application
+- Key files: `internal/rules/ruleset.go`, `internal/rules/headers.go`, `internal/rules/maplocal.go`
+
+**`internal/config/`:**
+- Purpose: config source precedence and strict schema parsing
+- Contains: `Config` schema, env parsing, path resolution
+- Key files: `internal/config/config.go`
+
+**`internal/ca/` + `pkg/ca/` + `pkg/p12/`:**
+- Purpose: CA persistence/cache and low-level crypto primitives
+- Contains: disk I/O and caches in `internal/ca`; pure cert issuance in `pkg/ca`; P12 encoder in `pkg/p12`
+- Key files: `internal/ca/ca.go`, `pkg/ca/ca.go`, `pkg/p12/p12.go`
+
+## Key File Locations
+
+**Entry Points:**
+- `cmd/jeltz/main.go`: process startup and subcommand routing
 
 **Configuration:**
-- `internal/config/config.go` — `Config`, `RawRule`, `RawMatch`, `RawOps`, `CLIOverrides`, `Load`. Defines all YAML-mapped types and the full config resolution pipeline.
+- `internal/config/config.go`: defaults/env/file/CLI merge and validation
+- `README.md`: user-facing config reference and rule examples
 
-**Certificate authority:**
-- `internal/ca/ca.go` — `CA` struct, `Load`, `LeafCert`. Manages CA key/cert on disk, in-memory leaf cert cache, and PKCS#12 bundle. Depends on `pkg/ca` and `pkg/p12`.
-- `pkg/ca/ca.go` — `GenerateCA`, `IssueLeaf`. Pure crypto, no disk I/O.
-- `pkg/p12/p12.go` — `Encode`. Pure-Go PKCS#12 DER encoding, no third-party deps.
+**Core Logic:**
+- `internal/proxy/pipeline.go`: request/response flow execution
+- `internal/proxy/mitm.go`: CONNECT TLS interception and HTTP/2 support
+- `internal/rules/ruleset.go`: compile-time rule type dispatch
 
-**Utilities:**
-- `internal/logging/logging.go` — `New(level)`, slog key constants.
-- `internal/httpx/hopbyhop.go` — `RemoveHopByHop(h http.Header)`.
-- `pkg/xdg/xdg.go` — `ConfigDir(appName)`, `DataDir(appName)`.
-
-**Tests (co-located with source):**
-- `internal/ca/ca_test.go`
-- `internal/config/config_test.go`
-- `internal/proxy/pipeline_test.go`
-- `internal/proxy/mitm_h2_integration_test.go`
-- `internal/rules/headers_test.go`
-- `internal/rules/maplocal_test.go`
-- `internal/rules/rules_test.go`
-- `pkg/ca/ca_test.go`
-- `pkg/p12/p12_test.go`
-- `pkg/xdg/xdg_test.go`
-
-## Module Organization
-
-**Module path:** `github.com/fabiant7t/jeltz`
-
-**Package split principle:**
-- `internal/` — packages that depend on application concerns (config types, slog logger, other internal packages). Cannot be imported by external modules.
-- `pkg/` — packages that are self-contained, pure, and have no imports from `internal/`. Suitable for use as a library. Currently contains: crypto primitives (`pkg/ca`), PKCS#12 encoding (`pkg/p12`), XDG paths (`pkg/xdg`).
-
-**Dependency direction (no cycles):**
-```
-cmd/jeltz
-  → internal/ca        → pkg/ca, pkg/p12
-  → internal/config    (stdlib + viper + yaml.v3)
-  → internal/logging   (stdlib)
-  → internal/proxy     → internal/ca, internal/httpx, internal/logging, internal/rules
-  → internal/rules     → internal/config
-  → pkg/xdg            (stdlib)
-```
-
-`pkg/` packages depend only on the standard library.
-`internal/config` is a leaf package (no internal imports).
-`internal/logging` is a leaf package.
-`internal/httpx` is a leaf package.
+**Testing:**
+- `internal/proxy/*_test.go`: unit + integration proxy tests
+- `internal/config/config_test.go`: precedence and validation tests
+- `internal/rules/*_test.go`: matching/header/map_local tests
+- `pkg/*/*_test.go`: package-level primitive tests
 
 ## Naming Conventions
 
-**Files:** `lowercase.go`, single word or two-word concatenation (e.g., `hopbyhop.go`, `maplocal.go`). Test files: `*_test.go`.
+**Files:**
+- Lowercase short names by domain (`pipeline.go`, `maplocal.go`, `xdg.go`)
+- Tests use `_test.go` suffix beside package files
 
-**Packages:** Lowercase, one word, matching the directory name (e.g., `package proxy`, `package rules`, `package ca`).
-
-**Types:** PascalCase structs (`FlowContext`, `ResponseResult`, `MapLocalRule`). Interfaces named by capability (`caLoader`).
-
-**Functions:** PascalCase for exported (`CompileMatch`, `RemoveHopByHop`), camelCase for unexported (`applyDelete`, `serveLocal`).
+**Directories:**
+- Domain-oriented package layout (`internal/proxy`, `internal/rules`, `pkg/ca`)
 
 ## Where to Add New Code
 
-**New rule type:**
-- Add raw config struct fields to `internal/config/config.go` (`RawRule` struct)
-- Implement compiled type and `Compile*` function in a new file under `internal/rules/` (follow pattern of `maplocal.go`)
-- Add a new slice field to `RuleSet` in `internal/rules/ruleset.go` and a case in `Compile()`
-- Apply the rule in the appropriate step inside `Pipeline.Run` in `internal/proxy/pipeline.go`
+**New proxy feature:**
+- Primary code: `internal/proxy/`
+- Rules/compiler changes: `internal/rules/`
+- Config wiring: `internal/config/config.go` + `cmd/jeltz/main.go`
+- Tests: corresponding `internal/proxy/*_test.go` and/or `internal/rules/*_test.go`
 
-**New CLI subcommand:**
-- Add a `case` in the `switch os.Args[1]` block in `cmd/jeltz/main.go`
-- Implement as a `run*()` function in `cmd/jeltz/main.go` (or a new file in `cmd/jeltz/`)
+**New CLI behavior:**
+- Implementation: `cmd/jeltz/main.go` (or split helper file in `cmd/jeltz/`)
+- Output/behavior tests: `cmd/jeltz/main_test.go`, `cmd/jeltz/cli_output_test.go`
 
-**New reusable crypto/utility primitive:**
-- Add a new package under `pkg/` with no imports from `internal/`
-
-**New internal utility:**
-- Add to an appropriate existing package under `internal/` or create a new one-file package
-
-**Configuration options:**
-- Add field to `yamlConfig` struct (YAML schema) and `Config` struct in `internal/config/config.go`
-- Wire through `config.Load()` and add a CLI flag + `CLIOverrides` field in `cmd/jeltz/main.go`
+**New utility helper:**
+- Internal-only helper: add under `internal/<domain>/`
+- Reusable pure helper: add under `pkg/<domain>/`
 
 ## Special Directories
 
-**`.planning/`:**
-- Purpose: GSD planning documents (architecture, conventions, concerns, etc.)
-- Generated: No (written by planning agents)
-- Committed: Yes (in `.gitignore` it is NOT excluded — tracked)
+**`.planning/codebase/`:**
+- Purpose: operational reference docs for planning/execution commands
+- Generated: No (manually curated)
+- Committed: Yes
 
-**`cmd/jeltz/`:**
-- Purpose: The single binary produced by this module. All `go build` output targets `./cmd/jeltz`.
-- Not a library; imports freely from `internal/` and `pkg/`.
+**`.github/workflows/`:**
+- Purpose: CI execution definition
+- Generated: No
+- Committed: Yes
 
 ---
 
