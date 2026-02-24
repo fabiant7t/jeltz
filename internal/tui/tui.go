@@ -50,6 +50,8 @@ type model struct {
 	filter     slog.Level
 	visible    map[string]bool
 	keyCatalog map[string]struct{}
+	autoscroll bool
+	wrap       bool
 
 	searchMode  bool
 	searchInput string
@@ -70,6 +72,7 @@ func newModel(cfg Config) model {
 		filter:     -1000, // show all
 		visible:    make(map[string]bool),
 		keyCatalog: make(map[string]struct{}),
+		autoscroll: true,
 	}
 }
 
@@ -173,6 +176,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cycleFilter()
 			m.rebuildViewport(false)
 			return m, nil
+		case "s":
+			m.autoscroll = !m.autoscroll
+			return m, nil
+		case "w":
+			m.wrap = !m.wrap
+			m.rebuildViewport(false)
+			return m, nil
 		case "v":
 			m.visMode = true
 			m.syncVisKeys()
@@ -220,7 +230,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.events) > 2000 {
 			m.events = m.events[len(m.events)-2000:]
 		}
-		m.rebuildViewport(true)
+		m.rebuildViewport(m.autoscroll)
 		return m, waitEvent(m.cfg.Events)
 	case streamClosedMsg:
 		return m, nil
@@ -259,7 +269,11 @@ func (m *model) rebuildViewport(stickBottom bool) {
 			continue
 		}
 		m.rows = append(m.rows, r)
-		lines = append(lines, r.text)
+		if m.wrap && m.vp.Width > 0 {
+			lines = append(lines, wrapLine(r.text, m.vp.Width)...)
+		} else {
+			lines = append(lines, r.text)
+		}
 	}
 	m.vp.SetContent(strings.Join(lines, "\n"))
 	if stickBottom {
@@ -272,7 +286,7 @@ func (m model) View() string {
 		return topStyle.Render(fmt.Sprintf("search: /%s", m.searchInput)) + "\n" + m.vp.View() + "\n" + m.status()
 	}
 	top := topStyle.Render(fmt.Sprintf(
-		"jeltz UI  |  listen=%s  |  filter=%s  |  / search  v visibility  vim: j/k  ctrl-d/u  g/G  f filter  c clear  q quit",
+		"jeltz UI  |  listen=%s  |  filter=%s  |  / search  v visibility  s autoscroll  w wrap  vim: j/k  ctrl-d/u  g/G  f filter  c clear  q quit",
 		m.cfg.ListenAddr, filterLabel(m.filter),
 	))
 	view := top + "\n" + m.vp.View() + "\n" + m.status()
@@ -284,8 +298,8 @@ func (m model) View() string {
 
 func (m model) status() string {
 	return statusStyle.Render(fmt.Sprintf(
-		"logs=%d  shown=%d  dropped=%d  search=%q",
-		m.total, len(m.rows), dropped(m.cfg.Dropped), m.searchQuery,
+		"logs=%d  shown=%d  dropped=%d  search=%q  autoscroll=%t  wrap=%t",
+		m.total, len(m.rows), dropped(m.cfg.Dropped), m.searchQuery, m.autoscroll, m.wrap,
 	))
 }
 
@@ -396,6 +410,22 @@ func renderEvent(ev logstream.Event, visible map[string]bool) string {
 		line += "  " + strings.Join(kv, " ")
 	}
 	return line
+}
+
+func wrapLine(s string, width int) []string {
+	if width <= 0 || len(s) <= width {
+		return []string{s}
+	}
+	r := []rune(s)
+	out := make([]string, 0, len(r)/width+1)
+	for len(r) > width {
+		out = append(out, string(r[:width]))
+		r = r[width:]
+	}
+	if len(r) > 0 {
+		out = append(out, string(r))
+	}
+	return out
 }
 
 var (

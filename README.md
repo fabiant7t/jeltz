@@ -126,7 +126,7 @@ CLI flags override config file values. For bool/int flags, overrides apply only 
 - Navigation: `j`/`k` (line), `Ctrl-d`/`Ctrl-u` (half-page), `g`/`G` (top/bottom)
 - Search: `/` then type query, `Enter` to apply, `Esc` to cancel
 - Visibility dialog: `v` opens per-key visibility settings (`space` toggle, `a` all on, `n` all off)
-- Other: `f` cycle level filter, `c` clear, `q` quit
+- Other: `f` cycle level filter, `s` toggle autoscroll, `w` toggle wrap, `c` clear, `q` quit
 
 ---
 
