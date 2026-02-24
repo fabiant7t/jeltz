@@ -36,10 +36,10 @@
 - `internal/ca/ca.go`: Leaf certs are cached in-memory only with a fixed cap (`leafCacheMaxEntries = 1024`). Evicted hosts require re-issuance on next request.
 - Risk: Low for development usage, but frequent host churn can increase CPU from repeated leaf issuance.
 
-**Single global `sync.Mutex` on the CA for all leaf cert issuance:**
-- `internal/ca/ca.go`: `ca.mu.Lock()` is held for the entire duration of `LeafCert`, including RSA key generation for new hosts. Under concurrent HTTPS CONNECT requests to many previously-unseen hosts, all goroutines serialize on this one lock.
-- Risk: Latency spike on first connection to many distinct hosts simultaneously (e.g., browser startup loading many resources).
-- Mitigation path: Use a per-host lock or generate certs outside the global lock, inserting only under the lock.
+**Per-host CA locking still serializes same-host issuance:**
+- `internal/ca/ca.go`: Leaf issuance now uses per-host locks, so different hosts can issue in parallel. Requests for the same host still serialize during issuance and cache insert.
+- Risk: Low for development use; hot single-host bursts still queue on first-miss issuance.
+- Mitigation path: Keep as-is unless profiling shows this path is a bottleneck.
 
 **No rate-limiting or connection cap on the proxy listener:**
 - `internal/proxy/proxy.go`: The `http.Server` has no maximum connections setting. A client could open many simultaneous CONNECT tunnels, each spawning goroutines and issuing leaf certs.

@@ -41,6 +41,7 @@ type CA struct {
 	mu       sync.Mutex
 	cache    map[string]*list.Element // host → *list.Element(cacheEntry)
 	cacheLRU *list.List               // front=most recent, back=least recent
+	locks    map[string]*hostLock     // per-host issuance lock
 }
 
 // Load loads or creates the CA from dataDir.
@@ -88,12 +89,11 @@ func (ca *CA) P12Path() string {
 // LeafCert returns a *tls.Certificate for host, issuing and caching a new one
 // if necessary. Thread-safe.
 func (ca *CA) LeafCert(host string) (*tls.Certificate, error) {
-	ca.mu.Lock()
-	defer ca.mu.Unlock()
+	unlockHost := ca.lockHost(host)
+	defer unlockHost()
 
-	if elem, ok := ca.cache[host]; ok {
-		ca.cacheLRU.MoveToFront(elem)
-		return elem.Value.(*cacheEntry).cert, nil
+	if cert, ok := ca.getCached(host); ok {
+		return cert, nil
 	}
 
 	// Issue a new leaf cert.
@@ -102,15 +102,7 @@ func (ca *CA) LeafCert(host string) (*tls.Certificate, error) {
 		return nil, fmt.Errorf("issuing cert for %q: %w", host, err)
 	}
 
-	elem := ca.cacheLRU.PushFront(&cacheEntry{host: host, cert: cert})
-	ca.cache[host] = elem
-	if ca.cacheLRU.Len() > leafCacheMaxEntries {
-		if back := ca.cacheLRU.Back(); back != nil {
-			ent := back.Value.(*cacheEntry)
-			delete(ca.cache, ent.host)
-			ca.cacheLRU.Remove(back)
-		}
-	}
+	ca.putCached(host, cert)
 	return cert, nil
 }
 
@@ -161,6 +153,7 @@ func loadFromDisk(dataDir, keyPath, certPath string) (*CA, error) {
 		raw:      certBlock.Bytes,
 		cache:    make(map[string]*list.Element),
 		cacheLRU: list.New(),
+		locks:    make(map[string]*hostLock),
 	}, nil
 }
 
@@ -181,4 +174,64 @@ func writePEM(path, pemType string, data []byte, mode os.FileMode) error {
 type cacheEntry struct {
 	host string
 	cert *tls.Certificate
+}
+
+type hostLock struct {
+	mu   sync.Mutex
+	refs int
+}
+
+func (ca *CA) getCached(host string) (*tls.Certificate, bool) {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+	elem, ok := ca.cache[host]
+	if !ok {
+		return nil, false
+	}
+	ca.cacheLRU.MoveToFront(elem)
+	return elem.Value.(*cacheEntry).cert, true
+}
+
+func (ca *CA) putCached(host string, cert *tls.Certificate) {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+
+	if elem, ok := ca.cache[host]; ok {
+		elem.Value.(*cacheEntry).cert = cert
+		ca.cacheLRU.MoveToFront(elem)
+		return
+	}
+
+	elem := ca.cacheLRU.PushFront(&cacheEntry{host: host, cert: cert})
+	ca.cache[host] = elem
+	if ca.cacheLRU.Len() <= leafCacheMaxEntries {
+		return
+	}
+	if back := ca.cacheLRU.Back(); back != nil {
+		ent := back.Value.(*cacheEntry)
+		delete(ca.cache, ent.host)
+		ca.cacheLRU.Remove(back)
+	}
+}
+
+func (ca *CA) lockHost(host string) func() {
+	ca.mu.Lock()
+	hlock, ok := ca.locks[host]
+	if !ok {
+		hlock = &hostLock{}
+		ca.locks[host] = hlock
+	}
+	hlock.refs++
+	ca.mu.Unlock()
+
+	hlock.mu.Lock()
+	return func() {
+		hlock.mu.Unlock()
+		ca.mu.Lock()
+		hlock.refs--
+		if hlock.refs == 0 {
+			delete(ca.locks, host)
+		}
+		ca.mu.Unlock()
+	}
 }

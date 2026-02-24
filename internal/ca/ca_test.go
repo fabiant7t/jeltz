@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -165,6 +166,35 @@ func TestLeafCert_LRUCapacityEvictsOldest(t *testing.T) {
 	}
 	if firstCertAgain == firstCert {
 		t.Fatal("expected first host cert to be reissued after LRU eviction")
+	}
+}
+
+func TestLeafCert_ConcurrentDifferentHosts(t *testing.T) {
+	dir := t.TempDir()
+	c, err := ca.Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	const n = 8
+	var wg sync.WaitGroup
+	errCh := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			host := fmt.Sprintf("concurrent-%d.example", i)
+			if _, err := c.LeafCert(host); err != nil {
+				errCh <- err
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("LeafCert error: %v", err)
+		}
 	}
 }
 
