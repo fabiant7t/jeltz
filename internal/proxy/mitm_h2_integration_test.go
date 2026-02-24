@@ -112,7 +112,7 @@ func TestMITM_H2_ConcurrentStreams(t *testing.T) {
 	dir := t.TempDir()
 	staticDir := filepath.Join(dir, "static")
 	_ = os.MkdirAll(staticDir, 0o755)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		name := fmt.Sprintf("file%d.txt", i)
 		_ = os.WriteFile(filepath.Join(staticDir, name), []byte("content-"+name), 0o644)
 	}
@@ -178,7 +178,7 @@ func TestMITM_H2_ConcurrentStreams(t *testing.T) {
 	}
 	results := make([]result, N)
 	var wg sync.WaitGroup
-	for i := 0; i < N; i++ {
+	for i := range N {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -323,8 +323,7 @@ func TestMITM_UpstreamPassthrough(t *testing.T) {
 	srv := proxy.New("127.0.0.1:0", logger, pipeline, caInst)
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	proxyAddr := ln.Addr().String()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go func() {
 		hs := &http.Server{Handler: srv}
 		go func() { <-ctx.Done(); hs.Close() }()

@@ -29,14 +29,14 @@ type Config struct {
 
 // RawRule holds a single rule as-loaded from YAML before type-specific parsing.
 type RawRule struct {
-	Type     string      `yaml:"type"`
-	Match    RawMatch    `yaml:"match"`
-	Path     string      `yaml:"path,omitempty"`
-	IndexFile string     `yaml:"index_file,omitempty"`
-	StatusCode int       `yaml:"status_code,omitempty"`
+	Type        string   `yaml:"type"`
+	Match       RawMatch `yaml:"match"`
+	Path        string   `yaml:"path,omitempty"`
+	IndexFile   string   `yaml:"index_file,omitempty"`
+	StatusCode  int      `yaml:"status_code,omitempty"`
 	ContentType string   `yaml:"content_type,omitempty"`
-	Request  *RawOps     `yaml:"request,omitempty"`
-	Response *RawOps     `yaml:"response,omitempty"`
+	Request     *RawOps  `yaml:"request,omitempty"`
+	Response    *RawOps  `yaml:"response,omitempty"`
 }
 
 // RawMatch holds the raw match block from YAML.
@@ -103,7 +103,7 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 	v.SetDefault("insecure_upstream", false)
 	v.SetDefault("dump_traffic", false)
 	v.SetDefault("max_body_bytes", int64(1048576))
-	v.SetDefault("rules", []interface{}{})
+	v.SetDefault("rules", []any{})
 
 	// Env vars (JELTZ_ prefix).
 	v.SetEnvPrefix("JELTZ")

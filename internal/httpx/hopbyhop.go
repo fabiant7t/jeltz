@@ -24,7 +24,7 @@ var hopByHopHeaders = map[string]struct{}{
 func RemoveHopByHop(h http.Header) {
 	// Headers listed in Connection: are also hop-by-hop.
 	for _, v := range h["Connection"] {
-		for _, tok := range strings.Split(v, ",") {
+		for tok := range strings.SplitSeq(v, ",") {
 			h.Del(strings.TrimSpace(tok))
 		}
 	}
