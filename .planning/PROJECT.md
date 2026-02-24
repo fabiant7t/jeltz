@@ -34,18 +34,17 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 
 ### Out of Scope
 
-- `map_local` streaming via `http.ServeContent` — not requested
 - Per-host cert cache eviction — not requested
 - Windows build target — not requested
 
-## Current Milestone: v1.5 — map_local Streaming
+## Current Milestone: v1.6 — Subcommand Dispatch Hardening
 
-**Goal:** Reduce memory pressure by streaming local-file responses instead of reading full files into memory.
+**Goal:** Make CLI subcommand handling explicit and error-safe instead of falling through to proxy startup on typos.
 
 **Target features:**
-- Replace `os.ReadFile` map-local response path with streaming equivalent
-- Keep content-type behavior and status/header rule behavior unchanged
-- Add regression test for large local file response without full-memory buffering semantics
+- Replace manual `os.Args[1]` dispatch with explicit subcommand parsing/validation
+- Unknown subcommands return a clear error and non-zero exit
+- Add tests for subcommand success + unknown-subcommand behavior
 
 ## Completed Milestone: v1.1 — Proxy Handler Tests
 
@@ -81,6 +80,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Ensure clients receive full upstream response bodies even when traffic dump is enabled
 - Add regression test covering large response body with dump enabled
 
+## Completed Milestone: v1.5 — map_local Streaming
+
+**Goal:** Reduce memory pressure by streaming local-file responses instead of reading full files into memory.
+
+**Target features:**
+- Replace `os.ReadFile` map-local response path with streaming equivalent
+- Keep content-type behavior and status/header rule behavior unchanged
+- Add regression test for large local file response without full-memory buffering semantics
+
 ## Context
 
 Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
@@ -100,6 +108,7 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 | Bool overrides only when explicitly set (v1.2) | Prevent CLI defaults from silently overriding YAML | ✓ Complete |
 | Upstream transport timeouts configurable (v1.3) | Prevent indefinite blocking on stalled upstream | ✓ Complete |
 | Dump-body path streams while logging snippet (v1.4) | Prevent client-visible truncation under `-dump-traffic` | ✓ Complete |
+| map_local responses stream from file handles (v1.5) | Avoid full-file buffering for local response bodies | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.4 implementation*
+*Last updated: 2026-02-24 after milestone v1.5 implementation*

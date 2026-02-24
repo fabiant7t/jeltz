@@ -29,11 +29,6 @@
 - Impact: Subtle staleness bugs if the file changes mid-startup; maintenance overhead.
 - Mitigation path: Read the file once into memory; feed that single byte slice to both viper and yaml.v3.
 
-**`map_local` reads entire files into memory with `os.ReadFile`:**
-- `internal/proxy/pipeline.go` line 173: `data, err := os.ReadFile(mlr.FSTarget)`. The entire file is loaded into a `bytes.Reader` before any response is written.
-- Impact: Large mock files (multi-MB assets, videos) will spike memory use proportional to the number of concurrent requests. No streaming path exists.
-- Mitigation path: Use `http.ServeContent` or open a `*os.File` and stream it; fall back to ReadFile only for content-sniffing when extension detection fails.
-
 **Subcommand dispatch via manual `os.Args` slice check:**
 - `cmd/jeltz/main.go` lines 29–41: Subcommands (`ca-path`, `ca-p12-path`, `ca-install-hint`) are handled by a bare `switch os.Args[1]` check before the `flag.FlagSet` is even created. Any unknown argument falls through to the main proxy flow and is silently ignored by `flag.ExitOnError`.
 - Impact: Typos in subcommand names silently start the proxy instead of returning an error; `--help` on a subcommand is not handled.
@@ -47,14 +42,6 @@
 ---
 
 ## Missing Pieces
-
-**No test coverage for `proxy.ServeHTTP` / `handleForward` end-to-end:**
-- `internal/proxy/proxy.go` `handleForward` (lines 141–222) has no dedicated test. The fallback path (no pipeline configured) and the pipeline-integrated path for plain HTTP forward requests are exercised only indirectly through higher-level integration tests.
-- Risk: Regressions in HTTP/1.1 plain proxy forwarding could go undetected.
-
-**No test coverage for `rawTunnel` (non-MITM CONNECT fallback):**
-- `internal/proxy/proxy.go` lines 106–138: The raw TCP tunnel path (triggered when no CA is configured) has no test.
-- Risk: The tunnel's bidirectional copy logic could silently break.
 
 **No test for the startup banner or subcommand flows:**
 - `cmd/jeltz/banner.go` and `cmd/jeltz/main.go` subcommand functions (`runCAPath`, `runCAP12Path`, `runCAInstallHint`) have no tests.
@@ -105,9 +92,6 @@
 
 **Replace triple-read config parsing with a single-pass approach:**
 - Reading the YAML once into `[]byte`, using that for viper initialisation, strict validation, and rule parsing would eliminate the redundant reads and the associated fragility. See `internal/config/config.go`.
-
-**Stream `map_local` responses instead of buffering:**
-- Replacing `os.ReadFile` + `bytes.NewReader` with `http.ServeContent` in `internal/proxy/pipeline.go` would give free Range request support, correct `Last-Modified`/`ETag` handling, and avoid full-file buffering.
 
 **Increase leaf cert key size or migrate to ECDSA:**
 - Changing `IssueLeaf` in `internal/ca/ca.go` from 2048-bit RSA to ECDSA P-256 would produce smaller, faster, and more future-proof certificates.

@@ -231,6 +231,8 @@ If `path` points to a file, that file is always served regardless of the URL pat
 
 Content-Type is determined by: explicit `content_type` → file extension → `Content-Type` sniffing → `application/octet-stream`.
 
+`map_local` responses are streamed from disk; files are not fully buffered in memory before being sent.
+
 ---
 
 ## Full example config
