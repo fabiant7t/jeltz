@@ -29,11 +29,6 @@
 - Impact: Subtle staleness bugs if the file changes mid-startup; maintenance overhead.
 - Mitigation path: Read the file once into memory; feed that single byte slice to both viper and yaml.v3.
 
-**`rawTunnel` (plain TCP fallback in `internal/proxy/proxy.go`) only waits for one goroutine to finish:**
-- Lines 125–137: `done` channel has capacity 2, but `<-done` is called twice after launching two goroutines. This is correct, but the pattern is unusual and any reader must verify the channel capacity matches the goroutine count. A future refactor changing the capacity would silently break cleanup.
-- Impact: Low risk now, but fragile under maintenance.
-- Mitigation path: Use `sync.WaitGroup` for clarity.
-
 ---
 
 ## Missing Pieces

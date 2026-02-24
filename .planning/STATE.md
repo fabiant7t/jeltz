@@ -8,16 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Milestone v1.8 — remaining CLI/runtime reliability gaps.
+**Current focus:** Milestone v1.9 — remaining runtime reliability gaps (`map_local` startup validation, request body limits).
 
 ---
 
 ## Current Position
 
 **Phase:** Milestone transition
-**Plan:** v1.8 reliability follow-ups
-**Status:** v1.7 complete; next milestone defined
-**Last activity:** 2026-02-24 — Added tests for subcommand output flows and startup banner content/no-color behavior
+**Plan:** v1.9 reliability follow-ups
+**Status:** v1.8 complete; next milestone defined
+**Last activity:** 2026-02-24 — Refactored `rawTunnel` sync from done-channel counting to `sync.WaitGroup`
 
 ---
 
@@ -36,6 +36,7 @@
 | map_local serving streams file bodies | Reduce memory footprint on large local responses |
 | Explicit subcommand parsing and validation | Prevent typo fallback from unintentionally starting proxy |
 | CLI output and banner flows covered by tests | Guard user-facing output contracts against regressions |
+| rawTunnel synchronization uses WaitGroup | Improve maintainability without changing tunnel behavior |
 
 ### Active Constraints
 
@@ -58,8 +59,10 @@ None.
 - [x] Execute Phase 5
 - [x] Plan Phase 6
 - [x] Execute Phase 6
-- [ ] Plan Phase 7
-- [ ] Execute Phase 7
+- [x] Plan Phase 7
+- [x] Execute Phase 7
+- [ ] Plan Phase 8
+- [ ] Execute Phase 8
 
 ---
 

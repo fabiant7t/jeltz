@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/fabiant7t/jeltz/internal/httpx"
@@ -122,19 +123,19 @@ func rawTunnel(clientConn net.Conn, targetAddr string, logger *slog.Logger) {
 		return
 	}
 
-	done := make(chan struct{}, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
+		defer wg.Done()
 		io.Copy(upstream, clientConn) //nolint:errcheck
 		upstream.Close()
-		done <- struct{}{}
 	}()
 	go func() {
+		defer wg.Done()
 		io.Copy(clientConn, upstream) //nolint:errcheck
 		clientConn.Close()
-		done <- struct{}{}
 	}()
-	<-done
-	<-done
+	wg.Wait()
 }
 
 // handleForward handles non-CONNECT (plain HTTP) forward proxy requests.

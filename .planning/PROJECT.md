@@ -107,6 +107,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Banner content coverage in `NO_COLOR` mode
 - Preserve behavior; add regression guardrails only
 
+## Completed Milestone: v1.8 — rawTunnel Synchronization Cleanup
+
+**Goal:** Reduce maintenance fragility in `rawTunnel` by replacing channel-count coupling with explicit wait semantics.
+
+**Target features:**
+- Replace `done` channel synchronization with `sync.WaitGroup`
+- Preserve tunnel behavior and cleanup order
+- Validate with existing proxy tunnel test coverage
+
 ## Context
 
 Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
@@ -129,6 +138,7 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 | map_local responses stream from file handles (v1.5) | Avoid full-file buffering for local response bodies | ✓ Complete |
 | Explicit subcommand parsing (v1.6) | Unknown subcommands fail fast instead of proxy startup fallback | ✓ Complete |
 | CLI output paths + banner now covered by tests (v1.7) | Prevent silent regressions in user-facing CLI text output | ✓ Complete |
+| rawTunnel waits via WaitGroup (v1.8) | Remove fragile goroutine-count/channel coupling | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.7 implementation*
+*Last updated: 2026-02-24 after milestone v1.8 implementation*
