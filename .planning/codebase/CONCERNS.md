@@ -39,9 +39,6 @@
 
 ## Opportunities
 
-**Windows build target is missing from goreleaser:**
-- `.goreleaser.yaml` builds only `linux` and `darwin`. Adding `windows` would broaden the tool's reach without code changes.
-
 ---
 
 *Concerns audit: 2026-02-24*
