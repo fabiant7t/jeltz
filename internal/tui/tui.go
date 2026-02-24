@@ -407,13 +407,12 @@ func renderEvent(ev logstream.Event, visible map[string]bool) string {
 
 func orderedAttrKeys(attrs map[string]string, visible map[string]bool) []string {
 	constraintOrder := []string{
-		"component",
-		"method",
-		"proto",
-		"scheme",
 		"host",
 		"path",
 		"status",
+		"method",
+		"proto",
+		"scheme",
 		"duration_ms",
 		"client",
 		"source",
@@ -421,6 +420,10 @@ func orderedAttrKeys(attrs map[string]string, visible map[string]bool) []string 
 
 	present := make(map[string]struct{}, len(attrs))
 	for k := range attrs {
+		if k == "component" {
+			// Component is already shown in the fixed "[component]" column.
+			continue
+		}
 		if v, ok := visible[k]; ok && !v {
 			continue
 		}
