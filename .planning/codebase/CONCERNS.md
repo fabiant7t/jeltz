@@ -40,10 +40,6 @@
 - `internal/proxy/proxy.go`: The `http.Server` has no maximum connections setting. A client could open many simultaneous CONNECT tunnels, each spawning goroutines and issuing leaf certs.
 - Risk: Low for a single-developer localhost tool; relevant if exposed beyond loopback.
 
-**`goreleaser` release builds strip debug info (`-s -w` ldflags):**
-- `.goreleaser.yaml` line 18: `ldflags: -s -w` strips the symbol table and DWARF debug info from release binaries.
-- Risk: Crash reports and stack traces from production builds will be harder to diagnose without separate symbol files.
-
 ---
 
 ## Opportunities

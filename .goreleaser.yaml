@@ -15,7 +15,6 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w
       - -X main.version={{.Version}}
       - -X main.buildDate={{.Date}}
       - -X main.gitRevision={{.ShortCommit}}
