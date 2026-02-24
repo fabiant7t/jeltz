@@ -7,7 +7,7 @@
 
 ### Config Loading
 
-- [ ] **CONF-01**: The YAML config file is read from disk exactly once on startup; the resulting `[]byte` is passed to Viper, the strict `KnownFields` validator, and the rule struct parser — no second or third `os.ReadFile` or `os.Open` call occurs
+- [x] **CONF-01**: The YAML config file is read from disk exactly once on startup; the resulting `[]byte` is passed to Viper, the strict `KnownFields` validator, and the rule struct parser — no second or third `os.ReadFile` or `os.Open` call occurs
 
 ## v2 Requirements
 
@@ -27,7 +27,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONF-01 | Phase 1 | Pending |
+| CONF-01 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 1 total

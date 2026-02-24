@@ -8,7 +8,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Config Read-Once Refactor** - Consolidate config file I/O to a single `os.ReadFile` call feeding Viper, KnownFields validation, and rule parsing from one shared `[]byte`
+- [x] **Phase 1: Config Read-Once Refactor** - Consolidate config file I/O to a single `os.ReadFile` call feeding Viper, KnownFields validation, and rule parsing from one shared `[]byte` (completed 2026-02-24)
 
 ---
 
@@ -40,7 +40,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Config Read-Once Refactor | 0/1 | Not started | - |
+| 1. Config Read-Once Refactor | 1/1 | Complete   | 2026-02-24 |
 
 ---
 
