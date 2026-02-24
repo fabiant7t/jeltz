@@ -306,16 +306,73 @@ func dumpBody(logger *slog.Logger, body io.ReadCloser, maxBytes int64) io.ReadCl
 	if body == nil || maxBytes <= 0 {
 		return body
 	}
-	snip, err := io.ReadAll(io.LimitReader(body, maxBytes))
-	body.Close() //nolint:errcheck
-	if err == nil && len(snip) > 0 {
-		logger.Debug("traffic_body",
-			slog.String(logging.KeyComponent, "dump"),
-			slog.String("snippet", string(snip)),
-			slog.Int("bytes", len(snip)),
-		)
+	snippet := &bytes.Buffer{}
+	tee := io.TeeReader(body, &snippetLimitWriter{
+		buf:       snippet,
+		remaining: maxBytes,
+	})
+	return &dumpBodyReadCloser{
+		body:    body,
+		reader:  tee,
+		logger:  logger,
+		snippet: snippet,
 	}
-	return io.NopCloser(bytes.NewReader(snip))
+}
+
+type snippetLimitWriter struct {
+	buf       *bytes.Buffer
+	remaining int64
+}
+
+func (w *snippetLimitWriter) Write(p []byte) (int, error) {
+	if w.remaining <= 0 {
+		return len(p), nil
+	}
+	n := len(p)
+	if int64(n) > w.remaining {
+		n = int(w.remaining)
+	}
+	if n > 0 {
+		_, _ = w.buf.Write(p[:n])
+		w.remaining -= int64(n)
+	}
+	return len(p), nil
+}
+
+type dumpBodyReadCloser struct {
+	body    io.ReadCloser
+	reader  io.Reader
+	logger  *slog.Logger
+	snippet *bytes.Buffer
+	logged  bool
+}
+
+func (d *dumpBodyReadCloser) Read(p []byte) (int, error) {
+	n, err := d.reader.Read(p)
+	if err == io.EOF {
+		d.logSnippet()
+	}
+	return n, err
+}
+
+func (d *dumpBodyReadCloser) Close() error {
+	d.logSnippet()
+	return d.body.Close()
+}
+
+func (d *dumpBodyReadCloser) logSnippet() {
+	if d.logged {
+		return
+	}
+	d.logged = true
+	if d.snippet.Len() == 0 {
+		return
+	}
+	d.logger.Debug("traffic_body",
+		slog.String(logging.KeyComponent, "dump"),
+		slog.String("snippet", d.snippet.String()),
+		slog.Int("bytes", d.snippet.Len()),
+	)
 }
 
 // WriteResponse writes result to w and logs the completed flow.

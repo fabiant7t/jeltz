@@ -317,7 +317,7 @@ jeltz writes structured text logs to stderr. All events share a stable set of ke
 
 ### Traffic dumping
 
-Start with `-dump-traffic` to log request/response headers at `debug` level after all transforms are applied. `Authorization`, `Cookie`, and `Set-Cookie` headers are redacted. Body snippets (up to `-max-body-bytes`) are also logged.
+Start with `-dump-traffic` to log request/response headers at `debug` level after all transforms are applied. `Authorization`, `Cookie`, and `Set-Cookie` headers are redacted. Body snippets (up to `-max-body-bytes`) are also logged, while full response bodies are still forwarded to clients.
 
 ```sh
 jeltz -log-level debug -dump-traffic

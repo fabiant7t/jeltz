@@ -210,6 +210,41 @@ func TestPipeline_UpstreamResponseHeaderTimeoutReturns502(t *testing.T) {
 	}
 }
 
+func TestPipeline_DumpTraffic_DoesNotTruncateBody(t *testing.T) {
+	payload := bytes.Repeat([]byte("abcdef0123456789"), 64*1024) // 1 MiB
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(payload)
+	}))
+	defer upstream.Close()
+
+	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	p := proxy.NewPipeline(nil, false).WithDumpTraffic(1024)
+	result, runErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "GET", Path: "/", Header: make(http.Header),
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	if result.Status != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", result.Status, http.StatusOK)
+	}
+
+	got, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("body mismatch: got %d bytes, want %d", len(got), len(payload))
+	}
+}
+
 func TestPipeline_MapLocal_404WhenFileMissing(t *testing.T) {
 	dir := t.TempDir()
 	subDir := filepath.Join(dir, "static")

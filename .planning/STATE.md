@@ -8,16 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Milestone v1.4 — fix dump-body truncation when `-dump-traffic` is enabled.
+**Current focus:** Milestone v1.5 — stream `map_local` file responses to reduce memory usage.
 
 ---
 
 ## Current Position
 
 **Phase:** Milestone transition
-**Plan:** v1.4 dump-body streaming
-**Status:** v1.3 complete; next milestone defined
-**Last activity:** 2026-02-24 — Added upstream transport timeout config/flags + pipeline timeout behavior tests
+**Plan:** v1.5 map_local streaming
+**Status:** v1.4 complete; next milestone defined
+**Last activity:** 2026-02-24 — Reworked dump-body path to stream while logging snippet + added non-truncation regression test
 
 ---
 
@@ -32,10 +32,11 @@
 | Test via `ServeHTTP` surface | `handleForward`/`rawTunnel` are unexported; tests must drive them through the exported handler |
 | CLI bool/int pointers only when flags are visited | Prevent default CLI values from overriding YAML unexpectedly |
 | Upstream transport timeout keys added | Bound dial/handshake/header/idle wait times for upstream requests |
+| Dump traffic body logging now streams | Preserve full upstream response body while capturing snippet |
 
 ### Active Constraints
 
-- Preserve response semantics while fixing dump-body truncation
+- Preserve existing `map_local` response behavior while changing I/O strategy
 - Keep tests in stdlib `testing` only
 
 ### Blockers
@@ -46,8 +47,10 @@ None.
 
 - [x] Plan Phase 2
 - [x] Execute Phase 2
-- [ ] Plan Phase 3
-- [ ] Execute Phase 3
+- [x] Plan Phase 3
+- [x] Execute Phase 3
+- [ ] Plan Phase 4
+- [ ] Execute Phase 4
 
 ---
 

@@ -34,11 +34,6 @@
 - Impact: Large mock files (multi-MB assets, videos) will spike memory use proportional to the number of concurrent requests. No streaming path exists.
 - Mitigation path: Use `http.ServeContent` or open a `*os.File` and stream it; fall back to ReadFile only for content-sniffing when extension detection fails.
 
-**`dumpBody` in `internal/proxy/pipeline.go` consumes and buffers the upstream response body:**
-- Lines 270–283: `io.ReadAll` up to `maxBodyBytes` is called, the original body is closed, and a `bytes.Reader` wrapping the consumed bytes is returned. Beyond `maxBodyBytes`, bytes are silently dropped — the caller receives a truncated body.
-- Impact: When `-dump-traffic` is enabled on a large upstream response, the client receives only the first `maxBodyBytes` bytes with no indication that truncation occurred. No `Content-Length` correction is applied.
-- Mitigation path: Use `io.TeeReader` to log the snippet while streaming the full body through to the client.
-
 **Subcommand dispatch via manual `os.Args` slice check:**
 - `cmd/jeltz/main.go` lines 29–41: Subcommands (`ca-path`, `ca-p12-path`, `ca-install-hint`) are handled by a bare `switch os.Args[1]` check before the `flag.FlagSet` is even created. Any unknown argument falls through to the main proxy flow and is silently ignored by `flag.ExitOnError`.
 - Impact: Typos in subcommand names silently start the proxy instead of returning an error; `--help` on a subcommand is not handled.
@@ -113,9 +108,6 @@
 
 **Stream `map_local` responses instead of buffering:**
 - Replacing `os.ReadFile` + `bytes.NewReader` with `http.ServeContent` in `internal/proxy/pipeline.go` would give free Range request support, correct `Last-Modified`/`ETag` handling, and avoid full-file buffering.
-
-**Switch `dumpBody` to `io.TeeReader`:**
-- Replacing the read-all-and-wrap pattern in `internal/proxy/pipeline.go` with a `TeeReader` that writes a snippet to a buffer while streaming the original body would fix silent response truncation when `-dump-traffic` is used.
 
 **Increase leaf cert key size or migrate to ECDSA:**
 - Changing `IssueLeaf` in `internal/ca/ca.go` from 2048-bit RSA to ECDSA P-256 would produce smaller, faster, and more future-proof certificates.

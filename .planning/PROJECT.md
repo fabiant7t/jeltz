@@ -30,22 +30,22 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - [x] `rawTunnel` (non-MITM CONNECT TCP fallback) has unit tests covering the bidirectional copy logic
 - [x] CLI boolean override semantics fixed: `-insecure-upstream` and `-dump-traffic` only override YAML when explicitly set
 - [x] Upstream transport timeout configuration added (dial/TLS handshake/response header/idle connection)
+- [x] `-dump-traffic` no longer truncates client response bodies
 
 ### Out of Scope
 
 - `map_local` streaming via `http.ServeContent` — not requested
-- `io.TeeReader` fix for `-dump-traffic` truncation — not requested
 - Per-host cert cache eviction — not requested
 - Windows build target — not requested
 
-## Current Milestone: v1.3 — Dump Traffic Body Streaming
+## Current Milestone: v1.5 — map_local Streaming
 
-**Goal:** Remove response truncation when `-dump-traffic` is enabled by streaming upstream bodies while logging snippets.
+**Goal:** Reduce memory pressure by streaming local-file responses instead of reading full files into memory.
 
 **Target features:**
-- Replace `dumpBody` read-all buffering path with streaming (`io.TeeReader` or equivalent)
-- Ensure clients receive full upstream response bodies even when traffic dump is enabled
-- Add regression test covering large response body with dump enabled
+- Replace `os.ReadFile` map-local response path with streaming equivalent
+- Keep content-type behavior and status/header rule behavior unchanged
+- Add regression test for large local file response without full-memory buffering semantics
 
 ## Completed Milestone: v1.1 — Proxy Handler Tests
 
@@ -72,6 +72,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - New config keys + CLI flags for timeout tuning
 - Tests for timeout defaults/overrides and response-header-timeout behavior
 
+## Completed Milestone: v1.4 — Dump Traffic Body Streaming
+
+**Goal:** Remove response truncation when `-dump-traffic` is enabled by streaming upstream bodies while logging snippets.
+
+**Target features:**
+- Replace `dumpBody` read-all buffering path with streaming wrapper
+- Ensure clients receive full upstream response bodies even when traffic dump is enabled
+- Add regression test covering large response body with dump enabled
+
 ## Context
 
 Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
@@ -90,6 +99,7 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 | Test via `ServeHTTP` (v1.1) | `handleForward`/`rawTunnel` are unexported; test through public surface | ✓ Complete |
 | Bool overrides only when explicitly set (v1.2) | Prevent CLI defaults from silently overriding YAML | ✓ Complete |
 | Upstream transport timeouts configurable (v1.3) | Prevent indefinite blocking on stalled upstream | ✓ Complete |
+| Dump-body path streams while logging snippet (v1.4) | Prevent client-visible truncation under `-dump-traffic` | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.3 implementation*
+*Last updated: 2026-02-24 after milestone v1.4 implementation*
