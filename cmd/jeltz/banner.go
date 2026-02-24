@@ -126,5 +126,5 @@ func printBanner(listen, configFile, dataDir, caCertPath, caP12Path string, rule
 		fmt.Fprintf(w, "\n  %s\n", boldBlue("RESISTANCE IS USELESS"))
 	}
 
-	fmt.Fprintln(w)
+	fmt.Fprintf(w, "\n  %s\n\n", dim("Copyright (c) 2026 Fabian Topfstedt"))
 }
