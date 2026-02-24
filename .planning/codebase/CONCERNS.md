@@ -6,10 +6,9 @@
 
 ## Critical Issues
 
-**Hardcoded PKCS#12 password published in plain text:**
+**Hardcoded PKCS#12 password published in plain text:** *(known, accepted)*
 - The P12 bundle password `"jeltz"` is a compile-time constant in `internal/ca/ca.go` (`P12Password = "jeltz"`) and is printed on the startup banner in `cmd/jeltz/banner.go` (`dim("(password: "+ca.P12Password+")")`). It is also documented verbatim in README.md.
-- Impact: Any attacker who obtains the `ca.p12` file can trivially import the CA private key. There is no mechanism for users to change this password.
-- Mitigation path: Accept a password from a CLI flag or env var; document that the P12 is only as secure as the data directory's filesystem permissions.
+- **Decision:** Intentional. The password is a convenience for importing the CA into browsers/OS trust stores. Security relies on filesystem permissions protecting `ca.p12`, not the password. No action needed.
 
 **Leaf certificates never expire in practice (100-year validity):**
 - Both the CA certificate and all per-host leaf certificates are issued with `validity = 100 * 365 * 24 * time.Hour` (`internal/ca/ca.go`). Leaf certs use 2048-bit RSA keys which may be considered weak before that expiry.
