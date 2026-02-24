@@ -81,7 +81,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cfg.Stop()
 			}
 			return m, tea.Quit
-		case "l":
+		case "f":
 			m.cycleFilter()
 			m.rebuildViewport(false)
 			return m, nil
@@ -89,6 +89,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rows = nil
 			m.total = 0
 			m.rebuildViewport(false)
+			return m, nil
+		case "j", "down":
+			m.vp.LineDown(1)
+			return m, nil
+		case "k", "up":
+			m.vp.LineUp(1)
+			return m, nil
+		case "ctrl+d":
+			m.vp.HalfViewDown()
+			return m, nil
+		case "ctrl+u":
+			m.vp.HalfViewUp()
+			return m, nil
+		case "g", "home":
+			m.vp.GotoTop()
+			return m, nil
+		case "G", "end":
+			m.vp.GotoBottom()
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -143,7 +161,7 @@ func (m *model) rebuildViewport(stickBottom bool) {
 
 func (m model) View() string {
 	top := topStyle.Render(fmt.Sprintf(
-		"jeltz UI  |  listen=%s  |  filter=%s  |  commands: l=cycle filter  c=clear  q=quit",
+		"jeltz UI  |  listen=%s  |  filter=%s  |  vim: j/k scroll  ctrl-d/u half-page  g/G top/bottom  f=filter  c=clear  q=quit",
 		m.cfg.ListenAddr, filterLabel(m.filter),
 	))
 	status := statusStyle.Render(fmt.Sprintf(
