@@ -170,9 +170,11 @@ func runCAInstallHint() {
 		os.Exit(1)
 	}
 	caPath := caInstance.CertPath()
+	p12Path := caInstance.P12Path()
 	fmt.Printf(`jeltz CA Certificate Installation Hints
 
 CA certificate path: %s
+CA PKCS#12 bundle:   %s  (empty password)
 
 macOS:
   sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain %s
@@ -185,12 +187,16 @@ Linux (Fedora/RHEL):
   sudo cp %s /etc/pki/ca-trust/source/anchors/jeltz.crt
   sudo update-ca-trust
 
+Windows:
+  certutil -addstore Root %s
+  (or double-click %s → Install Certificate → Local Machine → Trusted Root CAs)
+
 Firefox (any OS):
   Open Settings → Privacy & Security → Certificates → View Certificates
   → Authorities → Import → select %s
 
-Chrome/Chromium:
+Chrome/Chromium (Linux/macOS uses the OS trust store above):
   Open Settings → Privacy and security → Security → Manage certificates
   → Authorities → Import → select %s
-`, caPath, caPath, caPath, caPath, caPath, caPath)
+`, caPath, p12Path, caPath, caPath, caPath, caPath, p12Path, caPath, caPath)
 }

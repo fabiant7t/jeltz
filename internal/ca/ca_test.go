@@ -26,6 +26,9 @@ func TestLoad_CreatesCA(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "ca.crt.pem")); err != nil {
 		t.Error("ca.crt.pem not created")
 	}
+	if _, err := os.Stat(filepath.Join(dir, "ca.p12")); err != nil {
+		t.Error("ca.p12 not created")
+	}
 }
 
 func TestLoad_Idempotent(t *testing.T) {

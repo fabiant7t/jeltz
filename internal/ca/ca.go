@@ -15,11 +15,14 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 const (
 	caKeyFile  = "ca.key.pem"
 	caCertFile = "ca.crt.pem"
+	caP12File  = "ca.p12"
 	certsDir   = "certs"
 
 	// 100-year validity as required by spec.
@@ -54,12 +57,28 @@ func Load(dataDir string) (*CA, error) {
 		}
 	}
 
-	return loadFromDisk(dataDir, keyPath, certPath)
+	loaded, err := loadFromDisk(dataDir, keyPath, certPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write PKCS#12 bundle if missing (first run or upgrade).
+	p12Path := filepath.Join(dataDir, caP12File)
+	if _, err := os.Stat(p12Path); os.IsNotExist(err) {
+		_ = writeP12(p12Path, loaded.key, loaded.cert)
+	}
+
+	return loaded, nil
 }
 
 // CertPath returns the path to the CA certificate file.
 func (ca *CA) CertPath() string {
 	return filepath.Join(ca.dataDir, caCertFile)
+}
+
+// P12Path returns the path to the CA PKCS#12 bundle.
+func (ca *CA) P12Path() string {
+	return filepath.Join(ca.dataDir, caP12File)
 }
 
 // LeafCert returns a *tls.Certificate for host, issuing and caching a new one
@@ -250,6 +269,16 @@ func saveLeafToDisk(path string, cert *tls.Certificate) error {
 		}
 	}
 	return nil
+}
+
+// writeP12 encodes key+cert as a PKCS#12 bundle with an empty password and
+// writes it to path with mode 0600.
+func writeP12(path string, key *rsa.PrivateKey, cert *x509.Certificate) error {
+	data, err := pkcs12.Legacy.Encode(key, cert, nil, "")
+	if err != nil {
+		return fmt.Errorf("ca: encode p12: %w", err)
+	}
+	return os.WriteFile(path, data, 0o600)
 }
 
 func writePEM(path, pemType string, data []byte, mode os.FileMode) error {
