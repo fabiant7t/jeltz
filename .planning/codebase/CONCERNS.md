@@ -38,10 +38,6 @@
 
 ## Missing Pieces
 
-**No test for the startup banner or subcommand flows:**
-- `cmd/jeltz/banner.go` and `cmd/jeltz/main.go` subcommand functions (`runCAPath`, `runCAP12Path`, `runCAInstallHint`) have no tests.
-- Risk: Silent breakage of `ca-install-hint` output format on platforms; banner format regressions.
-
 **No test coverage for `pkg/xdg` on non-Linux platforms:**
 - `pkg/xdg/xdg.go` contains XDG path resolution logic. Tests exist but run on the current platform only; behavior on macOS or Windows is untested.
 - Risk: Wrong data directories on macOS/Windows users.

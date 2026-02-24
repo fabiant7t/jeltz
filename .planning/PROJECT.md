@@ -37,14 +37,14 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Per-host cert cache eviction — not requested
 - Windows build target — not requested
 
-## Current Milestone: v1.6 — Subcommand Dispatch Hardening
+## Current Milestone: v1.8 — Remaining CLI/Runtime Reliability Gaps
 
-**Goal:** Make CLI subcommand handling explicit and error-safe instead of falling through to proxy startup on typos.
+**Goal:** Address the next reliability risks after CLI/output coverage and proxy-path hardening.
 
 **Target features:**
-- Replace manual `os.Args[1]` dispatch with explicit subcommand parsing/validation
-- Unknown subcommands return a clear error and non-zero exit
-- Add tests for subcommand success + unknown-subcommand behavior
+- Clarify and, where feasible, simplify `rawTunnel` goroutine synchronization (use `sync.WaitGroup`)
+- Evaluate request body limit strategy for upstream forwarding
+- Improve map-local startup-time path validation diagnostics
 
 ## Completed Milestone: v1.1 — Proxy Handler Tests
 
@@ -98,6 +98,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Unknown subcommands return a clear error and non-zero exit
 - Add tests for subcommand parsing behavior
 
+## Completed Milestone: v1.7 — CLI Output & Banner Coverage
+
+**Goal:** Add direct tests for subcommand output paths (`ca-path`, `ca-p12-path`, `ca-install-hint`) and banner stability.
+
+**Target features:**
+- Test coverage for CA path/bundle/install-hint output flows
+- Banner content coverage in `NO_COLOR` mode
+- Preserve behavior; add regression guardrails only
+
 ## Context
 
 Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
@@ -119,6 +128,7 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 | Dump-body path streams while logging snippet (v1.4) | Prevent client-visible truncation under `-dump-traffic` | ✓ Complete |
 | map_local responses stream from file handles (v1.5) | Avoid full-file buffering for local response bodies | ✓ Complete |
 | Explicit subcommand parsing (v1.6) | Unknown subcommands fail fast instead of proxy startup fallback | ✓ Complete |
+| CLI output paths + banner now covered by tests (v1.7) | Prevent silent regressions in user-facing CLI text output | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.6 implementation*
+*Last updated: 2026-02-24 after milestone v1.7 implementation*

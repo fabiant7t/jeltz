@@ -84,6 +84,7 @@ jeltz ca-install-hint
 ```
 
 Unknown subcommands now fail fast with a clear error (they do not fall through and start the proxy).
+CA path/install-hint output and startup banner rendering are covered by unit tests.
 
 On first run jeltz writes three files to its data directory:
 

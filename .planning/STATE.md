@@ -8,16 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Milestone v1.7 — add direct tests for subcommand output paths (`ca-path`, `ca-p12-path`, `ca-install-hint`) and banner stability.
+**Current focus:** Milestone v1.8 — remaining CLI/runtime reliability gaps.
 
 ---
 
 ## Current Position
 
 **Phase:** Milestone transition
-**Plan:** v1.7 CLI output test coverage
-**Status:** v1.6 complete; next milestone defined
-**Last activity:** 2026-02-24 — Added explicit subcommand parsing with unknown-subcommand error handling + parsing tests
+**Plan:** v1.8 reliability follow-ups
+**Status:** v1.7 complete; next milestone defined
+**Last activity:** 2026-02-24 — Added tests for subcommand output flows and startup banner content/no-color behavior
 
 ---
 
@@ -35,10 +35,11 @@
 | Dump traffic body logging now streams | Preserve full upstream response body while capturing snippet |
 | map_local serving streams file bodies | Reduce memory footprint on large local responses |
 | Explicit subcommand parsing and validation | Prevent typo fallback from unintentionally starting proxy |
+| CLI output and banner flows covered by tests | Guard user-facing output contracts against regressions |
 
 ### Active Constraints
 
-- Preserve existing CLI output formats while adding coverage for subcommand/banner flows
+- Preserve current CLI/proxy behavior while reducing remaining maintenance risk
 - Keep tests in stdlib `testing` only
 
 ### Blockers
@@ -55,8 +56,10 @@ None.
 - [x] Execute Phase 4
 - [x] Plan Phase 5
 - [x] Execute Phase 5
-- [ ] Plan Phase 6
-- [ ] Execute Phase 6
+- [x] Plan Phase 6
+- [x] Execute Phase 6
+- [ ] Plan Phase 7
+- [ ] Execute Phase 7
 
 ---
 
