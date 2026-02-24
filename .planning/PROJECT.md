@@ -37,14 +37,14 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Per-host cert cache eviction — not requested
 - Windows build target — not requested
 
-## Current Milestone: v1.12 — Remaining Reliability Gaps
+## Current Milestone: v1.13 — Remaining Reliability Gaps
 
-**Goal:** Address the remaining reliability risks after proxy/path hardening and traversal error handling improvements.
+**Goal:** Address the remaining reliability risks after proxy/path hardening and cross-platform test coverage setup.
 
 **Target features:**
-- Improve non-Linux coverage strategy for `pkg/xdg`
 - Revisit CA/cache risk items (leaf validity/key size and cache growth)
 - Keep reliability docs and risk register current with implemented mitigations
+- Continue reducing high-risk maintenance debt identified in `CONCERNS.md`
 
 ## Completed Milestone: v1.1 — Proxy Handler Tests
 
@@ -143,6 +143,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Return wrapped traversal sentinel from map-local resolve path
 - Add tests for direct and wrapped traversal detection
 
+## Completed Milestone: v1.12 — Cross-Platform XDG Test Strategy
+
+**Goal:** Ensure `pkg/xdg` behavior is validated across Linux, macOS, and Windows.
+
+**Target features:**
+- Keep deterministic XDG fallback assertions in `pkg/xdg/xdg_test.go`
+- Add CI OS matrix that runs `go test ./...` on Linux/macOS/Windows
+- Update docs to reflect cross-platform test coverage
+
 ## Context
 
 Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
@@ -169,6 +178,7 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 | map_local path validated at compile time (v1.9) | Prevent runtime 500 from missing filesystem paths | ✓ Complete |
 | Upstream request body limit configurable (v1.10) | Allow explicit protection against oversized forwarded request bodies | ✓ Complete |
 | Traversal detection uses errors.Is (v1.11) | Preserve correct 403 mapping even when errors are wrapped | ✓ Complete |
+| XDG coverage runs in OS matrix (v1.12) | Validate path behavior on Linux/macOS/Windows in CI | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.11 implementation*
+*Last updated: 2026-02-24 after milestone v1.12 implementation*

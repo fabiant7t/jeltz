@@ -36,6 +36,8 @@ make test         # run tests
 make race         # run tests with race detector
 ```
 
+CI runs `go test ./...` on Linux, macOS, and Windows.
+
 ---
 
 ## Quick start

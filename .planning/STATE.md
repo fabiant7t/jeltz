@@ -8,16 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Milestone v1.12 — remaining reliability gaps (CA/cache risk items, platform coverage).
+**Current focus:** Milestone v1.13 — remaining reliability gaps (CA/cache risk items, maintenance debt).
 
 ---
 
 ## Current Position
 
 **Phase:** Milestone transition
-**Plan:** v1.12 reliability follow-ups
-**Status:** v1.11 complete; next milestone defined
-**Last activity:** 2026-02-24 — Switched traversal detection to errors.Is + added wrapped-sentinel tests
+**Plan:** v1.13 reliability follow-ups
+**Status:** v1.12 complete; next milestone defined
+**Last activity:** 2026-02-24 — Added Linux/macOS/Windows CI test matrix and tightened XDG fallback assertions
 
 ---
 
@@ -40,6 +40,7 @@
 | map_local paths validated at compile-time | Convert runtime misconfig 500s into startup-time compile errors |
 | Upstream request body limits configurable | Optional safeguard against oversized forwarded payloads |
 | Traversal detection matches wrapped errors | Keep traversal 403 mapping resilient to error wrapping |
+| XDG tests run in OS matrix | Cross-platform path behavior verified in CI |
 
 ### Active Constraints
 
@@ -70,8 +71,10 @@ None.
 - [x] Execute Phase 9
 - [x] Plan Phase 10
 - [x] Execute Phase 10
-- [ ] Plan Phase 11
-- [ ] Execute Phase 11
+- [x] Plan Phase 11
+- [x] Execute Phase 11
+- [ ] Plan Phase 12
+- [ ] Execute Phase 12
 
 ---
 

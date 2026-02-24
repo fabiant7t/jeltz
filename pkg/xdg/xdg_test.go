@@ -3,7 +3,6 @@ package xdg_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/fabiant7t/jeltz/pkg/xdg"
@@ -35,8 +34,9 @@ func TestConfigDir_Fallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConfigDir: %v", err)
 	}
-	if !strings.HasSuffix(got, filepath.Join(".config", "jeltz")) {
-		t.Errorf("unexpected path: %q", got)
+	want := filepath.Join(tmp, ".config", "jeltz")
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
@@ -63,7 +63,8 @@ func TestDataDir_Fallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DataDir: %v", err)
 	}
-	if !strings.HasSuffix(got, filepath.Join(".local", "share", "jeltz")) {
-		t.Errorf("unexpected path: %q", got)
+	want := filepath.Join(tmp, ".local", "share", "jeltz")
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }

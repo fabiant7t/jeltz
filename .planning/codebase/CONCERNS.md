@@ -33,10 +33,6 @@
 
 ## Missing Pieces
 
-**No test coverage for `pkg/xdg` on non-Linux platforms:**
-- `pkg/xdg/xdg.go` contains XDG path resolution logic. Tests exist but run on the current platform only; behavior on macOS or Windows is untested.
-- Risk: Wrong data directories on macOS/Windows users.
-
 ---
 
 ## Risks
