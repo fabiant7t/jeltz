@@ -31,6 +31,9 @@ func main() {
 		case "ca-path":
 			runCAPath()
 			return
+		case "ca-p12-path":
+			runCAP12Path()
+			return
 		case "ca-install-hint":
 			runCAInstallHint()
 			return
@@ -39,7 +42,7 @@ func main() {
 
 	fs := flag.NewFlagSet("jeltz", flag.ExitOnError)
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: jeltz [flags]\n\nSubcommands:\n  ca-path          Print CA certificate path\n  ca-install-hint  Print CA installation hints\n\nFlags:\n")
+		fmt.Fprintf(os.Stderr, "Usage: jeltz [flags]\n\nSubcommands:\n  ca-path          Print CA certificate path\n  ca-p12-path      Print CA bundle path\n  ca-install-hint  Print CA installation hints\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
 
@@ -151,6 +154,20 @@ func runCAPath() {
 		os.Exit(1)
 	}
 	fmt.Println(caInstance.CertPath())
+}
+
+func runCAP12Path() {
+	dataDir, err := xdg.DataDir("jeltz")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "jeltz ca-p12-path: %v\n", err)
+		os.Exit(1)
+	}
+	caInstance, err := ca.Load(dataDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "jeltz ca-p12-path: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println(caInstance.P12Path())
 }
 
 func runCAInstallHint() {
