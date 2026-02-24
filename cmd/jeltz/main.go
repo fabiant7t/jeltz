@@ -14,6 +14,7 @@ import (
 	"github.com/fabiant7t/jeltz/internal/config"
 	"github.com/fabiant7t/jeltz/internal/logging"
 	"github.com/fabiant7t/jeltz/internal/proxy"
+	"github.com/fabiant7t/jeltz/internal/rules"
 	"github.com/fabiant7t/jeltz/internal/xdg"
 )
 
@@ -102,10 +103,35 @@ func main() {
 		slog.Int("rules", len(cfg.Rules)),
 	)
 
+	// Load CA (creates on first run).
+	caInstance, err := ca.Load(cfg.DataDir)
+	if err != nil {
+		logger.Error("failed to load CA",
+			slog.String(logging.KeyComponent, "main"),
+			slog.String(logging.KeyEvent, "config_error"),
+			slog.String(logging.KeyError, err.Error()),
+		)
+		os.Exit(1)
+	}
+	logger.Info("CA loaded", slog.String(logging.KeyComponent, "main"), slog.String("ca_cert", caInstance.CertPath()))
+
+	// Compile rules.
+	rs, err := rules.Compile(cfg.Rules, cfg.BasePath)
+	if err != nil {
+		logger.Error("failed to compile rules",
+			slog.String(logging.KeyComponent, "main"),
+			slog.String(logging.KeyEvent, "config_error"),
+			slog.String(logging.KeyError, err.Error()),
+		)
+		os.Exit(1)
+	}
+
+	pipeline := proxy.NewPipeline(rs, cfg.InsecureUpstream)
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	srv := proxy.New(cfg.Listen, logger)
+	srv := proxy.New(cfg.Listen, logger, pipeline, caInstance)
 	if err := srv.ListenAndServe(ctx); err != nil {
 		logger.Error("server error",
 			slog.String(logging.KeyComponent, "main"),

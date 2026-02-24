@@ -16,16 +16,19 @@ import (
 
 // Server is the jeltz proxy server.
 type Server struct {
-	listen string
-	logger *slog.Logger
-	// pipeline will be wired in L6+
+	listen   string
+	logger   *slog.Logger
+	pipeline *Pipeline
+	ca       caLoader
 }
 
 // New creates a new proxy Server.
-func New(listen string, logger *slog.Logger) *Server {
+func New(listen string, logger *slog.Logger, pipeline *Pipeline, ca caLoader) *Server {
 	return &Server{
-		listen: listen,
-		logger: logger,
+		listen:   listen,
+		logger:   logger,
+		pipeline: pipeline,
+		ca:       ca,
 	}
 }
 
@@ -65,21 +68,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleCONNECT is a raw TCP tunnel stub (replaced in L8 with MITM).
+// handleCONNECT performs TLS MITM when CA is configured, else raw tunnel.
 func (s *Server) handleCONNECT(w http.ResponseWriter, r *http.Request) {
 	targetAddr := r.Host
-	s.logger.Debug("CONNECT (tunnel stub)",
+	host, port := targetHostPort(targetAddr)
+
+	s.logger.Debug("CONNECT",
 		slog.String(logging.KeyComponent, "proxy"),
 		slog.String(logging.KeyClient, r.RemoteAddr),
-		slog.String(logging.KeyHost, targetAddr),
+		slog.String(logging.KeyHost, host),
+		slog.String("port", port),
 	)
-
-	upstream, err := net.DialTimeout("tcp", targetAddr, 10*time.Second)
-	if err != nil {
-		http.Error(w, "Bad Gateway", http.StatusBadGateway)
-		return
-	}
-	defer upstream.Close()
 
 	hij, ok := w.(http.Hijacker)
 	if !ok {
@@ -90,7 +89,31 @@ func (s *Server) handleCONNECT(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+
+	if s.ca != nil && s.pipeline != nil {
+		// Full MITM with TLS interception (L8).
+		go s.mitmHandler(clientConn, host, port, r.RemoteAddr)
+		return
+	}
+
+	// Fallback: raw TCP tunnel (no CA configured).
+	rawTunnel(clientConn, targetAddr, s.logger)
+}
+
+// rawTunnel dials target and bidirectionally copies between clientConn and it.
+func rawTunnel(clientConn net.Conn, targetAddr string, logger *slog.Logger) {
 	defer clientConn.Close()
+	upstream, err := net.DialTimeout("tcp", targetAddr, 10*time.Second)
+	if err != nil {
+		logger.Error("tunnel dial",
+			slog.String(logging.KeyComponent, "proxy"),
+			slog.String(logging.KeyEvent, "upstream_error"),
+			slog.String(logging.KeyError, err.Error()),
+		)
+		writeHTTP1Error(clientConn, http.StatusBadGateway)
+		return
+	}
+	defer upstream.Close()
 
 	_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 
@@ -109,6 +132,40 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.pipeline != nil {
+		host, port := targetHostPort(r.URL.Host)
+		scheme := r.URL.Scheme
+		if scheme == "" {
+			scheme = "http"
+		}
+		fc := &FlowContext{
+			Logger:     s.logger,
+			ClientAddr: r.RemoteAddr,
+			Proto:      "http/1.1",
+			Scheme:     scheme,
+			Host:       host,
+			Port:       port,
+			Method:     r.Method,
+			Path:       r.URL.Path,
+			RawQuery:   r.URL.RawQuery,
+			Header:     r.Header.Clone(),
+			Body:       r.Body,
+		}
+		result, err := s.pipeline.Run(fc)
+		if err != nil {
+			s.logger.Error("pipeline error",
+				slog.String(logging.KeyComponent, "proxy"),
+				slog.String(logging.KeyEvent, "upstream_error"),
+				slog.String(logging.KeyError, err.Error()),
+			)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		WriteResponse(w, result, fc, start)
+		return
+	}
+
+	// Fallback: direct forward (pipeline not yet configured).
 	outReq := r.Clone(r.Context())
 	outReq.RequestURI = ""
 	outReq.Header = r.Header.Clone()
@@ -120,10 +177,6 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("upstream error",
 			slog.String(logging.KeyComponent, "proxy"),
 			slog.String(logging.KeyEvent, "upstream_error"),
-			slog.String(logging.KeyClient, r.RemoteAddr),
-			slog.String(logging.KeyMethod, r.Method),
-			slog.String(logging.KeyHost, r.URL.Host),
-			slog.String(logging.KeyPath, r.URL.Path),
 			slog.String(logging.KeyError, err.Error()),
 		)
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
