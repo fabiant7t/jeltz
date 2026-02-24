@@ -198,5 +198,5 @@ Firefox (any OS):
 Chrome/Chromium (Linux/macOS uses the OS trust store above):
   Open Settings → Privacy and security → Security → Manage certificates
   → Authorities → Import → select %s
-`, caPath, p12Path, caPath, caPath, caPath, p12Path, p12Path, p12Path, p12Path)
+`, caPath, p12Path, caPath, caPath, caPath, p12Path, p12Path, caPath, caPath)
 }
