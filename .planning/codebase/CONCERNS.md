@@ -4,13 +4,10 @@
 
 ## Tech Debt
 
-**State and roadmap documents are stale vs implemented runtime details:**
-- Issue: planning references still mention old details (for example viper-based config note in state history and current focus wording), while runtime now uses direct YAML/env parsing and phase checklist is complete.
-- Files: `.planning/STATE.md`, `.planning/PROJECT.md`, `.planning/ROADMAP.md`, `internal/config/config.go`
-- Impact: future planning automation can prioritize outdated work.
-- Fix approach: keep planning docs synchronized after each technical milestone; refresh "Last activity" and decision table entries to match latest commits.
+No active tech-debt backlog items identified for the current dev-tool scope.
 
 ## Known Bugs
+No known reproducible bugs currently tracked.
 
 ## Security Considerations
 
@@ -64,6 +61,7 @@
 - Blocks: Not applicable.
 
 ## Test Coverage Gaps
+No active high-value coverage gaps currently tracked.
 
 ---
 
