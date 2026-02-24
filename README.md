@@ -121,6 +121,13 @@ The CA certificate must be trusted by your OS or browser before HTTPS intercepti
 
 CLI flags override config file values. For bool/int flags, overrides apply only when the flag is explicitly provided on the CLI. Config file values override environment variables (`JELTZ_` prefix). Environment variables override built-in defaults.
 
+### TUI controls (`-ui`)
+
+- Navigation: `j`/`k` (line), `Ctrl-d`/`Ctrl-u` (half-page), `g`/`G` (top/bottom)
+- Search: `/` then type query, `Enter` to apply, `Esc` to cancel
+- Visibility dialog: `v` opens per-key visibility settings (`space` toggle, `a` all on, `n` all off)
+- Other: `f` cycle level filter, `c` clear, `q` quit
+
 ---
 
 ## Configuration
