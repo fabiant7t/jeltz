@@ -386,14 +386,7 @@ func renderEvent(ev logstream.Event, visible map[string]bool) string {
 	}
 	var kv []string
 	if len(ev.Attrs) > 0 {
-		keys := make([]string, 0, len(ev.Attrs))
-		for k := range ev.Attrs {
-			if v, ok := visible[k]; ok && !v {
-				continue
-			}
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := orderedAttrKeys(ev.Attrs, visible)
 		kv = make([]string, 0, len(keys))
 		for _, k := range keys {
 			kv = append(kv, fmt.Sprintf("%s=%q", k, ev.Attrs[k]))
@@ -410,6 +403,45 @@ func renderEvent(ev logstream.Event, visible map[string]bool) string {
 		line += "  " + strings.Join(kv, " ")
 	}
 	return line
+}
+
+func orderedAttrKeys(attrs map[string]string, visible map[string]bool) []string {
+	constraintOrder := []string{
+		"component",
+		"method",
+		"proto",
+		"scheme",
+		"host",
+		"path",
+		"status",
+		"duration_ms",
+		"client",
+		"source",
+	}
+
+	present := make(map[string]struct{}, len(attrs))
+	for k := range attrs {
+		if v, ok := visible[k]; ok && !v {
+			continue
+		}
+		present[k] = struct{}{}
+	}
+
+	out := make([]string, 0, len(present))
+	for _, k := range constraintOrder {
+		if _, ok := present[k]; ok {
+			out = append(out, k)
+			delete(present, k)
+		}
+	}
+
+	extra := make([]string, 0, len(present))
+	for k := range present {
+		extra = append(extra, k)
+	}
+	sort.Strings(extra)
+	out = append(out, extra...)
+	return out
 }
 
 func wrapLine(s string, width int) []string {
