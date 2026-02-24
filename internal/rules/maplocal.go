@@ -51,6 +51,9 @@ func CompileMapLocalRule(raw config.RawRule, basePath string) (*MapLocalRule, er
 	if !filepath.IsAbs(fsPath) {
 		fsPath = filepath.Join(basePath, fsPath)
 	}
+	if _, err := os.Stat(fsPath); err != nil {
+		return nil, fmt.Errorf("map_local path %q: %w", fsPath, err)
+	}
 
 	indexFile := raw.IndexFile
 	if indexFile == "" {

@@ -72,6 +72,9 @@ func TestMapLocal_PrefixStripping_IndexFile(t *testing.T) {
 
 func TestMapLocal_NoMatch_WrongHost(t *testing.T) {
 	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	r := makeMapLocalRule(t, dir, `^/static/`, dir)
 	result, err := r.Resolve(rules.FlowMeta{Method: "GET", Host: "other.com", Path: "/static/x"})
 	if err != nil {
@@ -84,6 +87,9 @@ func TestMapLocal_NoMatch_WrongHost(t *testing.T) {
 
 func TestMapLocal_NoMatch_PathNotFromStart(t *testing.T) {
 	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	// Use a path regex that doesn't start with ^ to verify runtime enforcement.
 	// Actually CompileMapLocalRule requires ^ so we test the runtime check
 	// via a regex that matches mid-string when ^ is removed by using a workaround.
@@ -126,6 +132,20 @@ func TestMapLocal_TraversalProtection_URLDotDot(t *testing.T) {
 	rel, err2 := filepath.Rel(dir, result.FSTarget)
 	if err2 != nil || strings.HasPrefix(rel, "..") {
 		t.Errorf("resolved path %q escapes rule dir %q", result.FSTarget, dir)
+	}
+}
+
+func TestMapLocal_PathMustExistAtCompile(t *testing.T) {
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "does-not-exist")
+	raw := config.RawRule{
+		Type:  "map_local",
+		Match: config.RawMatch{Host: ".*", Path: "^/"},
+		Path:  missing,
+	}
+	_, err := rules.CompileMapLocalRule(raw, dir)
+	if err == nil {
+		t.Fatal("expected error for missing map_local path")
 	}
 }
 

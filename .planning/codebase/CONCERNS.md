@@ -41,11 +41,6 @@
 - `internal/proxy/pipeline.go`: Request bodies are forwarded as-is to upstream with no size cap. An attacker sending a very large POST body through the proxy could exhaust memory or disk if the upstream is slow.
 - Impact: Low risk for a localhost developer tool, but worth noting for shared-network use.
 
-**`map_local` does not call `os.Stat` on error from disk (returns generic error for missing rule dir):**
-- `internal/rules/maplocal.go` lines 103–106: If `os.Stat(r.FSPath)` fails (e.g., the configured rule directory does not exist), the error is wrapped and returned — the pipeline propagates this as a 500. There is no startup-time validation that rule filesystem paths exist.
-- Impact: A misconfigured `path` in a map_local rule produces an opaque 500 at request time rather than a clear startup error.
-- Mitigation path: Validate that rule paths exist during `rules.Compile`.
-
 ---
 
 ## Risks

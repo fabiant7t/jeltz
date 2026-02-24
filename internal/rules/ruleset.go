@@ -42,7 +42,7 @@ func Compile(rawRules []config.RawRule, basePath string) (*RuleSet, error) {
 		case string(RuleTypeMapLocal):
 			ml, err := CompileMapLocalRule(raw, basePath)
 			if err != nil {
-				return nil, fmt.Errorf("rules[%d] (map_local): %w", i, err)
+				return nil, fmt.Errorf("rules[%d] (map_local path %q): %w", i, raw.Path, err)
 			}
 			rs.MapLocal = append(rs.MapLocal, ml)
 		default:
