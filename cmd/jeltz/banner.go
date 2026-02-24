@@ -61,9 +61,14 @@ func printBanner(listen, configFile, dataDir, caCertPath string, rules int, logL
 
 	w := os.Stderr
 
-	// Header: name + listen address.
-	fmt.Fprintf(w, "\n  %s  %s  %s\n",
+	// Header: name + version + listen address.
+	ver := version
+	if gitRevision != "" {
+		ver += " " + dim("("+gitRevision+")")
+	}
+	fmt.Fprintf(w, "\n  %s  %s  %s  %s\n",
 		bold(cyan("jeltz")),
+		ver,
 		dim("·"),
 		bold(listen),
 	)

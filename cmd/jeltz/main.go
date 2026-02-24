@@ -18,6 +18,13 @@ import (
 	"github.com/fabiant7t/jeltz/pkg/xdg"
 )
 
+// Build-time variables injected via -ldflags.
+var (
+	version     = "dev"
+	buildDate   = ""
+	gitRevision = ""
+)
+
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
