@@ -32,7 +32,7 @@
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md — Replace double-read with single os.ReadFile + v.SetConfigType/v.ReadConfig in config.Load
+- [x] 01-01-PLAN.md — Replace double-read with single os.ReadFile + v.SetConfigType/v.ReadConfig in config.Load (completed 2026-02-24)
 
 ---
 

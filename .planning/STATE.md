@@ -73,8 +73,8 @@ None.
 - [x] Execute Phase 10
 - [x] Plan Phase 11
 - [x] Execute Phase 11
-- [ ] Plan Phase 12
-- [ ] Execute Phase 12
+- [x] Plan Phase 12
+- [x] Execute Phase 12
 
 ---
 
