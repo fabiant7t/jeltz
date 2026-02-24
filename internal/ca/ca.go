@@ -2,20 +2,17 @@
 package ca
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"math/big"
-	"net"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	pkgca "github.com/fabiant7t/jeltz/pkg/ca"
 	"github.com/fabiant7t/jeltz/pkg/p12"
 )
 
@@ -55,7 +52,7 @@ func Load(dataDir string) (*CA, error) {
 
 	// Generate CA if key or cert are missing.
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-		if err := generate(dataDir, keyPath, certPath); err != nil {
+		if err := generate(keyPath, certPath); err != nil {
 			return nil, err
 		}
 	}
@@ -119,41 +116,16 @@ func (ca *CA) LeafCert(host string) (*tls.Certificate, error) {
 	return cert, nil
 }
 
-// generate creates a new RSA 3072 CA key and self-signed certificate.
-func generate(dataDir, keyPath, certPath string) error {
-	key, err := rsa.GenerateKey(rand.Reader, 3072)
+// generate creates a new RSA 3072 CA key and self-signed certificate on disk.
+func generate(keyPath, certPath string) error {
+	key, cert, err := pkgca.GenerateCA("jeltz Root CA", 3072, validity)
 	if err != nil {
-		return fmt.Errorf("ca: generate key: %w", err)
+		return err
 	}
-
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	if err != nil {
-		return fmt.Errorf("ca: serial: %w", err)
-	}
-
-	now := time.Now()
-	tmpl := &x509.Certificate{
-		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "jeltz Root CA"},
-		NotBefore:    now.Add(-time.Minute),
-		NotAfter:     now.Add(validity),
-		IsCA:         true,
-		KeyUsage:     x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		BasicConstraintsValid: true,
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
-	if err != nil {
-		return fmt.Errorf("ca: create cert: %w", err)
-	}
-
 	if err := writePEM(keyPath, "RSA PRIVATE KEY", x509.MarshalPKCS1PrivateKey(key), 0o600); err != nil {
 		return err
 	}
-	if err := writePEM(certPath, "CERTIFICATE", certDER, 0o644); err != nil {
-		return err
-	}
-	return nil
+	return writePEM(certPath, "CERTIFICATE", cert.Raw, 0o644)
 }
 
 func loadFromDisk(dataDir, keyPath, certPath string) (*CA, error) {
@@ -195,46 +167,7 @@ func loadFromDisk(dataDir, keyPath, certPath string) (*CA, error) {
 
 // issue creates and returns a new leaf TLS certificate signed by ca.
 func (ca *CA) issue(host string) (*tls.Certificate, error) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, fmt.Errorf("generate leaf key: %w", err)
-	}
-
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	if err != nil {
-		return nil, fmt.Errorf("serial: %w", err)
-	}
-
-	now := time.Now()
-	tmpl := &x509.Certificate{
-		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: host},
-		NotBefore:    now.Add(-time.Minute),
-		NotAfter:     now.Add(validity),
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	}
-	// Use IPAddresses SAN for IP addresses, DNSNames for hostnames.
-	if ip := net.ParseIP(host); ip != nil {
-		tmpl.IPAddresses = []net.IP{ip}
-	} else {
-		tmpl.DNSNames = []string{host}
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, ca.cert, &key.PublicKey, ca.key)
-	if err != nil {
-		return nil, fmt.Errorf("create cert: %w", err)
-	}
-
-	tlsCert := &tls.Certificate{
-		Certificate: [][]byte{certDER, ca.raw},
-		PrivateKey:  key,
-	}
-	tlsCert.Leaf, err = x509.ParseCertificate(certDER)
-	if err != nil {
-		return nil, fmt.Errorf("parse leaf cert: %w", err)
-	}
-	return tlsCert, nil
+	return pkgca.IssueLeaf(ca.key, ca.cert, host, 2048, validity)
 }
 
 // loadLeafFromDisk tries to load a PEM-encoded key+cert pair from path.
