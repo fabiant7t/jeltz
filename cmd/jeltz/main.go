@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/fabiant7t/jeltz/internal/config"
 	"github.com/fabiant7t/jeltz/internal/logging"
 	"github.com/fabiant7t/jeltz/internal/xdg"
 )
@@ -29,7 +30,7 @@ func main() {
 		fs.PrintDefaults()
 	}
 
-	// Resolve XDG dirs for defaults (best-effort; errors logged after logger init).
+	// Resolve XDG dirs for flag defaults.
 	xdgCfg, _ := xdg.ConfigDir()
 	xdgData, _ := xdg.DataDir()
 
@@ -41,14 +42,14 @@ func main() {
 		}
 	}
 
-	listen := fs.String("listen", "127.0.0.1:8080", "Proxy listen address")
-	configFile := fs.String("config", defaultConfig, "Path to config.yaml (default: XDG config dir)")
-	basePath := fs.String("base-path", xdgCfg, "Base path for relative rule paths")
-	dataDir := fs.String("data-dir", xdgData, "Data directory (CA, certs)")
+	listen := fs.String("listen", "", "Proxy listen address (default 127.0.0.1:8080)")
+	configFile := fs.String("config", defaultConfig, "Path to config.yaml")
+	basePath := fs.String("base-path", "", "Base path for relative rule paths (default: XDG config dir)")
+	dataDir := fs.String("data-dir", "", "Data directory (CA, certs; default: XDG data dir)")
 	logLevel := fs.String("log-level", "info", "Log level: debug|info|warn|error")
 	insecureUpstream := fs.Bool("insecure-upstream", false, "Skip TLS verification for upstream connections")
 	dumpTraffic := fs.Bool("dump-traffic", false, "Log request/response headers and body snippets")
-	maxBodyBytes := fs.Int64("max-body-bytes", 1048576, "Max body bytes to log when dump-traffic is enabled")
+	maxBodyBytes := fs.Int64("max-body-bytes", 0, "Max body bytes to log when dump-traffic is enabled (default 1048576)")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		os.Exit(1)
@@ -60,28 +61,46 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Build CLI overrides — only set fields that were explicitly provided.
+	cli := config.CLIOverrides{
+		Listen:   *listen,
+		BasePath: *basePath,
+		DataDir:  *dataDir,
+		LogLevel: *logLevel,
+	}
+	// Flags with bool/int64 zero values are always "set" so we pass them if
+	// non-default. For simplicity, always forward them as overrides.
+	cli.InsecureUpstream = insecureUpstream
+	cli.DumpTraffic = dumpTraffic
+	if *maxBodyBytes != 0 {
+		cli.MaxBodyBytes = maxBodyBytes
+	}
+
+	cfg, err := config.Load(*configFile, xdgCfg, xdgData, cli)
+	if err != nil {
+		logger.Error("failed to load config",
+			slog.String(logging.KeyComponent, "main"),
+			slog.String(logging.KeyEvent, "config_error"),
+			slog.String(logging.KeyError, err.Error()),
+		)
+		os.Exit(1)
+	}
+
 	logger.Info("jeltz starting",
 		slog.String(logging.KeyComponent, "main"),
-		slog.String("listen", *listen),
+		slog.String("listen", cfg.Listen),
 		slog.String("config_file", *configFile),
-		slog.String("base_path", *basePath),
-		slog.String("data_dir", *dataDir),
+		slog.String("base_path", cfg.BasePath),
+		slog.String("data_dir", cfg.DataDir),
 		slog.String("xdg_config_dir", xdgCfg),
 		slog.String("xdg_data_dir", xdgData),
-		slog.Bool("insecure_upstream", *insecureUpstream),
-		slog.Bool("dump_traffic", *dumpTraffic),
-		slog.Int64("max_body_bytes", *maxBodyBytes),
+		slog.Bool("insecure_upstream", cfg.InsecureUpstream),
+		slog.Bool("dump_traffic", cfg.DumpTraffic),
+		slog.Int64("max_body_bytes", cfg.MaxBodyBytes),
+		slog.Int("rules", len(cfg.Rules)),
 	)
 
 	// Placeholder: proxy server will be started here in L2+.
-	_ = listen
-	_ = configFile
-	_ = basePath
-	_ = dataDir
-	_ = insecureUpstream
-	_ = dumpTraffic
-	_ = maxBodyBytes
-
 	logger.Info("no proxy configured yet; exiting", slog.String(logging.KeyComponent, "main"))
 }
 
