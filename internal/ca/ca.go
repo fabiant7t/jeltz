@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"software.sslmate.com/src/go-pkcs12"
 )
 
 const (
@@ -269,16 +268,6 @@ func saveLeafToDisk(path string, cert *tls.Certificate) error {
 		}
 	}
 	return nil
-}
-
-// writeP12 encodes key+cert as a PKCS#12 bundle with an empty password and
-// writes it to path with mode 0600.
-func writeP12(path string, key *rsa.PrivateKey, cert *x509.Certificate) error {
-	data, err := pkcs12.Legacy.Encode(key, cert, nil, "")
-	if err != nil {
-		return fmt.Errorf("ca: encode p12: %w", err)
-	}
-	return os.WriteFile(path, data, 0o600)
 }
 
 func writePEM(path, pemType string, data []byte, mode os.FileMode) error {
