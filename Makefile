@@ -11,7 +11,7 @@ LDFLAGS := -X main.version=$(VERSION) \
            -X main.buildDate=$(BUILD_DATE) \
            -X main.gitRevision=$(GIT_REV)
 
-.PHONY: all build test race lint clean
+.PHONY: all build test race lint clean release
 
 all: build
 
@@ -29,3 +29,6 @@ lint:
 
 clean:
 	rm -f $(BINARY)
+
+release:
+	goreleaser release --clean
