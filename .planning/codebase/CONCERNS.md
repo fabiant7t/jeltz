@@ -10,11 +10,6 @@
 - The P12 bundle password `"jeltz"` is a compile-time constant in `internal/ca/ca.go` (`P12Password = "jeltz"`) and is printed on the startup banner in `cmd/jeltz/banner.go` (`dim("(password: "+ca.P12Password+")")`). It is also documented verbatim in README.md.
 - **Decision:** Intentional. The password is a convenience for importing the CA into browsers/OS trust stores. Security relies on filesystem permissions protecting `ca.p12`, not the password. No action needed.
 
-**Leaf certs use only 2048-bit RSA keys:**
-- `internal/ca/ca.go` line 170: `pkgca.IssueLeaf(ca.key, ca.cert, host, 2048, validity)`. The root CA uses 3072 bits, but each issued leaf cert uses 2048 bits.
-- Impact: Weaker than the CA, inconsistent with modern recommendations (NIST recommends 3072+ after 2030).
-- Mitigation path: Increase leaf key size to 3072 or switch to ECDSA P-256/P-384.
-
 ---
 
 ## Technical Debt
@@ -55,12 +50,6 @@
 
 **Replace triple-read config parsing with a single-pass approach:**
 - Reading the YAML once into `[]byte`, using that for viper initialisation, strict validation, and rule parsing would eliminate the redundant reads and the associated fragility. See `internal/config/config.go`.
-
-**Increase leaf cert key size or migrate to ECDSA:**
-- Changing `IssueLeaf` in `internal/ca/ca.go` from 2048-bit RSA to ECDSA P-256 would produce smaller, faster, and more future-proof certificates.
-
-**Add per-host lock granularity in the CA:**
-- Replacing the global mutex in `internal/ca/ca.go` with a `sync.Map` or a singleflight group per host would allow concurrent cert generation for distinct hosts.
 
 **Windows build target is missing from goreleaser:**
 - `.goreleaser.yaml` builds only `linux` and `darwin`. Adding `windows` would broaden the tool's reach without code changes.

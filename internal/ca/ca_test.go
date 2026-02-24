@@ -1,6 +1,7 @@
-package ca_test
+package ca
 
 import (
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"os"
@@ -8,13 +9,11 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/fabiant7t/jeltz/internal/ca"
 )
 
 func TestLoad_CreatesCA(t *testing.T) {
 	dir := t.TempDir()
-	c, err := ca.Load(dir)
+	c, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -36,11 +35,11 @@ func TestLoad_CreatesCA(t *testing.T) {
 
 func TestLoad_Idempotent(t *testing.T) {
 	dir := t.TempDir()
-	c1, err := ca.Load(dir)
+	c1, err := Load(dir)
 	if err != nil {
 		t.Fatalf("first Load: %v", err)
 	}
-	c2, err := ca.Load(dir)
+	c2, err := Load(dir)
 	if err != nil {
 		t.Fatalf("second Load: %v", err)
 	}
@@ -60,7 +59,7 @@ func TestLoad_Idempotent(t *testing.T) {
 
 func TestLeafCert_ValidForHost(t *testing.T) {
 	dir := t.TempDir()
-	c, err := ca.Load(dir)
+	c, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -92,7 +91,7 @@ func TestLeafCert_ValidForHost(t *testing.T) {
 
 func TestLeafCert_OneYearValidity(t *testing.T) {
 	dir := t.TempDir()
-	c, err := ca.Load(dir)
+	c, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -117,9 +116,29 @@ func TestLeafCert_OneYearValidity(t *testing.T) {
 	}
 }
 
+func TestLeafCert_KeySize3072(t *testing.T) {
+	dir := t.TempDir()
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	cert, err := c.LeafCert("bits.example")
+	if err != nil {
+		t.Fatalf("LeafCert: %v", err)
+	}
+
+	pk, ok := cert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		t.Fatalf("private key type: got %T, want *rsa.PrivateKey", cert.PrivateKey)
+	}
+	if pk.N.BitLen() != 3072 {
+		t.Fatalf("leaf key bits: got %d, want 3072", pk.N.BitLen())
+	}
+}
+
 func TestLeafCert_Cached(t *testing.T) {
 	dir := t.TempDir()
-	c, err := ca.Load(dir)
+	c, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -140,7 +159,7 @@ func TestLeafCert_Cached(t *testing.T) {
 
 func TestLeafCert_LRUCapacityEvictsOldest(t *testing.T) {
 	dir := t.TempDir()
-	c, err := ca.Load(dir)
+	c, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -151,8 +170,10 @@ func TestLeafCert_LRUCapacityEvictsOldest(t *testing.T) {
 		t.Fatalf("first host leaf cert: %v", err)
 	}
 
-	// Fill cache past capacity (1024).
-	for i := 1; i <= 1024; i++ {
+	c.cacheMax = 8
+
+	// Fill cache past capacity.
+	for i := 1; i <= c.cacheMax; i++ {
 		host := fmt.Sprintf("h%d.example", i)
 		if _, err := c.LeafCert(host); err != nil {
 			t.Fatalf("LeafCert(%s): %v", host, err)
@@ -171,7 +192,7 @@ func TestLeafCert_LRUCapacityEvictsOldest(t *testing.T) {
 
 func TestLeafCert_ConcurrentDifferentHosts(t *testing.T) {
 	dir := t.TempDir()
-	c, err := ca.Load(dir)
+	c, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -200,7 +221,7 @@ func TestLeafCert_ConcurrentDifferentHosts(t *testing.T) {
 
 func TestLeafCert_VerifiableWithCA(t *testing.T) {
 	dir := t.TempDir()
-	c, err := ca.Load(dir)
+	c, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

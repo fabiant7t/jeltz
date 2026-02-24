@@ -22,6 +22,7 @@ const (
 	caCertFile          = "ca.crt.pem"
 	caP12File           = "ca.p12"
 	leafCacheMaxEntries = 1024
+	leafKeyBits         = 3072
 
 	// P12Password is the fixed password for all jeltz PKCS#12 bundles.
 	P12Password = "jeltz"
@@ -39,6 +40,7 @@ type CA struct {
 	raw     []byte // DER-encoded CA cert (for tls.Certificate)
 
 	mu       sync.Mutex
+	cacheMax int
 	cache    map[string]*list.Element // host → *list.Element(cacheEntry)
 	cacheLRU *list.List               // front=most recent, back=least recent
 	locks    map[string]*hostLock     // per-host issuance lock
@@ -151,6 +153,7 @@ func loadFromDisk(dataDir, keyPath, certPath string) (*CA, error) {
 		key:      key,
 		cert:     cert,
 		raw:      certBlock.Bytes,
+		cacheMax: leafCacheMaxEntries,
 		cache:    make(map[string]*list.Element),
 		cacheLRU: list.New(),
 		locks:    make(map[string]*hostLock),
@@ -159,7 +162,7 @@ func loadFromDisk(dataDir, keyPath, certPath string) (*CA, error) {
 
 // issue creates and returns a new leaf TLS certificate signed by ca.
 func (ca *CA) issue(host string) (*tls.Certificate, error) {
-	return pkgca.IssueLeaf(ca.key, ca.cert, host, 2048, validity)
+	return pkgca.IssueLeaf(ca.key, ca.cert, host, leafKeyBits, validity)
 }
 
 func writePEM(path, pemType string, data []byte, mode os.FileMode) error {
@@ -204,7 +207,7 @@ func (ca *CA) putCached(host string, cert *tls.Certificate) {
 
 	elem := ca.cacheLRU.PushFront(&cacheEntry{host: host, cert: cert})
 	ca.cache[host] = elem
-	if ca.cacheLRU.Len() <= leafCacheMaxEntries {
+	if ca.cacheLRU.Len() <= ca.cacheMax {
 		return
 	}
 	if back := ca.cacheLRU.Back(); back != nil {
