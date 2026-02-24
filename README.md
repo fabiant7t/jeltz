@@ -109,6 +109,7 @@ The CA certificate must be trusted by your OS or browser before HTTPS intercepti
 | `-base-path` | XDG config dir | Base path for resolving relative `path` values in rules |
 | `-data-dir` | XDG data dir (`~/.local/share/jeltz`) | Directory for CA key/cert and CA bundle files |
 | `-log-level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `-ui` | `false` | Start an interactive TUI with live, filterable logs |
 | `-insecure-upstream` | `false` | Skip TLS certificate verification for upstream connections |
 | `-dump-traffic` | `false` | Log request/response headers and body snippets at debug level |
 | `-max-body-bytes` | `1048576` | Max body bytes to log when `-dump-traffic` is enabled |

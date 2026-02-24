@@ -15,8 +15,10 @@ import (
 	"github.com/fabiant7t/jeltz/internal/ca"
 	"github.com/fabiant7t/jeltz/internal/config"
 	"github.com/fabiant7t/jeltz/internal/logging"
+	"github.com/fabiant7t/jeltz/internal/logstream"
 	"github.com/fabiant7t/jeltz/internal/proxy"
 	"github.com/fabiant7t/jeltz/internal/rules"
+	"github.com/fabiant7t/jeltz/internal/tui"
 	"github.com/fabiant7t/jeltz/pkg/xdg"
 )
 
@@ -63,6 +65,7 @@ func main() {
 	logLevel := fs.String("log-level", "info", "Log level: debug|info|warn|error")
 	insecureUpstream := fs.Bool("insecure-upstream", false, "Skip TLS verification for upstream connections")
 	dumpTraffic := fs.Bool("dump-traffic", false, "Log request/response headers and body snippets")
+	ui := fs.Bool("ui", false, "Run an interactive terminal UI for live log viewing")
 	maxBodyBytes := fs.Int64("max-body-bytes", 0, "Max body bytes to log when dump-traffic is enabled (default 1048576)")
 	maxUpstreamRequestBodyBytes := fs.Int64("max-upstream-request-body-bytes", 0, "Max upstream request body bytes (0 = unlimited)")
 	upstreamDialTimeoutMS := fs.Int64("upstream-dial-timeout-ms", 0, "Upstream TCP dial timeout in milliseconds (default 10000)")
@@ -74,10 +77,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger, err := logging.New(*logLevel)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "jeltz: %v\n", err)
-		os.Exit(1)
+	var stream *logstream.Stream
+	var logger *slog.Logger
+	if *ui {
+		level, parseErr := logging.ParseLevel(*logLevel)
+		if parseErr != nil {
+			fmt.Fprintf(os.Stderr, "jeltz: %v\n", parseErr)
+			os.Exit(1)
+		}
+		stream = logstream.New(4096)
+		logger = slog.New(stream.Handler(level))
+	} else {
+		logger, err = logging.New(*logLevel)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "jeltz: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	cli := config.CLIOverrides{
@@ -132,8 +147,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	printBanner(cfg.Listen, *configFile, cfg.DataDir, caInstance.CertPath(), caInstance.P12Path(),
-		len(cfg.Rules), *logLevel, cfg.InsecureUpstream, cfg.DumpTraffic)
+	if !*ui {
+		printBanner(cfg.Listen, *configFile, cfg.DataDir, caInstance.CertPath(), caInstance.P12Path(),
+			len(cfg.Rules), *logLevel, cfg.InsecureUpstream, cfg.DumpTraffic)
+	}
 
 	pipeline := proxy.NewPipeline(rs, cfg.InsecureUpstream)
 	pipeline = pipeline.WithMaxUpstreamRequestBodyBytes(cfg.MaxUpstreamRequestBodyBytes)
@@ -151,11 +168,33 @@ func main() {
 	defer stop()
 
 	srv := proxy.New(cfg.Listen, logger, pipeline, caInstance)
-	if err := srv.ListenAndServe(ctx); err != nil {
-		logger.Error("server error",
-			slog.String(logging.KeyComponent, "main"),
-			slog.String(logging.KeyError, err.Error()),
-		)
+	if !*ui {
+		if err := srv.ListenAndServe(ctx); err != nil {
+			logger.Error("server error",
+				slog.String(logging.KeyComponent, "main"),
+				slog.String(logging.KeyError, err.Error()),
+			)
+			os.Exit(1)
+		}
+		return
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.ListenAndServe(ctx)
+		stop()
+	}()
+
+	if err := tui.Run(ctx, tui.Config{
+		ListenAddr: cfg.Listen,
+		Events:     stream.Events(),
+		Dropped:    stream.Dropped,
+		Stop:       stop,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "jeltz ui: %v\n", err)
+	}
+	if err := <-errCh; err != nil {
+		fmt.Fprintf(os.Stderr, "jeltz: server error: %v\n", err)
 		os.Exit(1)
 	}
 }
