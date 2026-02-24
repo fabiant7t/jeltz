@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/fabiant7t/jeltz/internal/ca"
 	"github.com/fabiant7t/jeltz/internal/config"
@@ -66,6 +67,10 @@ func main() {
 	insecureUpstream := fs.Bool("insecure-upstream", false, "Skip TLS verification for upstream connections")
 	dumpTraffic := fs.Bool("dump-traffic", false, "Log request/response headers and body snippets")
 	maxBodyBytes := fs.Int64("max-body-bytes", 0, "Max body bytes to log when dump-traffic is enabled (default 1048576)")
+	upstreamDialTimeoutMS := fs.Int64("upstream-dial-timeout-ms", 0, "Upstream TCP dial timeout in milliseconds (default 10000)")
+	upstreamTLSHandshakeTimeoutMS := fs.Int64("upstream-tls-handshake-timeout-ms", 0, "Upstream TLS handshake timeout in milliseconds (default 10000)")
+	upstreamResponseHeaderTimeoutMS := fs.Int64("upstream-response-header-timeout-ms", 0, "Upstream response header timeout in milliseconds (default 30000)")
+	upstreamIdleConnTimeoutMS := fs.Int64("upstream-idle-conn-timeout-ms", 0, "Upstream idle connection timeout in milliseconds (default 60000)")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		os.Exit(1)
@@ -85,6 +90,14 @@ func main() {
 		InsecureUpstream: boolFlagPtrIfSet(fs, "insecure-upstream", *insecureUpstream),
 		DumpTraffic:      boolFlagPtrIfSet(fs, "dump-traffic", *dumpTraffic),
 		MaxBodyBytes:     int64FlagPtrIfSet(fs, "max-body-bytes", *maxBodyBytes),
+		UpstreamDialTimeoutMS: int64FlagPtrIfSet(fs,
+			"upstream-dial-timeout-ms", *upstreamDialTimeoutMS),
+		UpstreamTLSHandshakeTimeoutMS: int64FlagPtrIfSet(fs,
+			"upstream-tls-handshake-timeout-ms", *upstreamTLSHandshakeTimeoutMS),
+		UpstreamResponseHeaderTimeoutMS: int64FlagPtrIfSet(fs,
+			"upstream-response-header-timeout-ms", *upstreamResponseHeaderTimeoutMS),
+		UpstreamIdleConnTimeoutMS: int64FlagPtrIfSet(fs,
+			"upstream-idle-conn-timeout-ms", *upstreamIdleConnTimeoutMS),
 	}
 
 	cfg, err := config.Load(*configFile, xdgCfg, xdgData, cli)
@@ -123,6 +136,12 @@ func main() {
 		len(cfg.Rules), *logLevel, cfg.InsecureUpstream, cfg.DumpTraffic)
 
 	pipeline := proxy.NewPipeline(rs, cfg.InsecureUpstream)
+	pipeline = pipeline.WithTransportTimeouts(proxy.TransportTimeouts{
+		DialTimeout:           time.Duration(cfg.UpstreamDialTimeoutMS) * time.Millisecond,
+		TLSHandshakeTimeout:   time.Duration(cfg.UpstreamTLSHandshakeTimeoutMS) * time.Millisecond,
+		ResponseHeaderTimeout: time.Duration(cfg.UpstreamResponseHeaderTimeoutMS) * time.Millisecond,
+		IdleConnTimeout:       time.Duration(cfg.UpstreamIdleConnTimeoutMS) * time.Millisecond,
+	})
 	if cfg.DumpTraffic {
 		pipeline = pipeline.WithDumpTraffic(cfg.MaxBodyBytes)
 	}

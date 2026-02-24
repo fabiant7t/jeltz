@@ -8,16 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Milestone v1.2 — CLI override semantics (`-insecure-upstream`, `-dump-traffic`, `-max-body-bytes` explicit-only overrides).
+**Current focus:** Milestone v1.4 — fix dump-body truncation when `-dump-traffic` is enabled.
 
 ---
 
 ## Current Position
 
-**Phase:** Implementation complete
-**Plan:** v1.2 CLI override semantics
-**Status:** Verifying and documenting
-**Last activity:** 2026-02-24 — Implemented explicit-only bool/int flag override helpers in `cmd/jeltz/main.go` + tests
+**Phase:** Milestone transition
+**Plan:** v1.4 dump-body streaming
+**Status:** v1.3 complete; next milestone defined
+**Last activity:** 2026-02-24 — Added upstream transport timeout config/flags + pipeline timeout behavior tests
 
 ---
 
@@ -31,10 +31,11 @@
 | `config.Load` signature unchanged | Callers in `cmd/jeltz/main.go` need no update |
 | Test via `ServeHTTP` surface | `handleForward`/`rawTunnel` are unexported; tests must drive them through the exported handler |
 | CLI bool/int pointers only when flags are visited | Prevent default CLI values from overriding YAML unexpectedly |
+| Upstream transport timeout keys added | Bound dial/handshake/header/idle wait times for upstream requests |
 
 ### Active Constraints
 
-- Preserve existing CLI behavior except precedence bug fix
+- Preserve response semantics while fixing dump-body truncation
 - Keep tests in stdlib `testing` only
 
 ### Blockers
@@ -45,6 +46,8 @@ None.
 
 - [x] Plan Phase 2
 - [x] Execute Phase 2
+- [ ] Plan Phase 3
+- [ ] Execute Phase 3
 
 ---
 

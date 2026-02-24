@@ -49,12 +49,6 @@
 - Impact: Low risk now, but fragile under maintenance.
 - Mitigation path: Use `sync.WaitGroup` for clarity.
 
-**`insecureUpstream` flag is always passed as a pointer to `CLIOverrides` even when unset:**
-- `cmd/jeltz/main.go` lines 66, 80–86: The `-insecure-upstream` boolean flag is always stored in `cli.InsecureUpstream` (a `*bool`), so `config.Load` always sees it as set and the config-file value can never win. This is by design for booleans (Go flags default to `false`), but it means a user cannot set `insecure_upstream: true` in the YAML and have it honored without also passing `-insecure-upstream` on the CLI — the flag default (`false`) silently overrides it.
-- Files: `cmd/jeltz/main.go`, `internal/config/config.go`
-- Impact: Config-file-set `insecure_upstream: true` is silently overridden to `false` at runtime.
-- Mitigation path: Only set `cli.InsecureUpstream` when the flag was explicitly provided (use `flag.Visit`).
-
 ---
 
 ## Missing Pieces
@@ -74,11 +68,6 @@
 **No test coverage for `pkg/xdg` on non-Linux platforms:**
 - `pkg/xdg/xdg.go` contains XDG path resolution logic. Tests exist but run on the current platform only; behavior on macOS or Windows is untested.
 - Risk: Wrong data directories on macOS/Windows users.
-
-**No connection timeout on the upstream `http.Transport` in `Pipeline`:**
-- `internal/proxy/pipeline.go` lines 72–78: `http.Transport` is created with only `InsecureSkipVerify` set. No `DialContext` with timeout, no `TLSHandshakeTimeout`, no `ResponseHeaderTimeout` are configured. The transport falls back to Go's defaults (no dial timeout, no header timeout).
-- Impact: A stalled upstream server will hold a proxy goroutine open indefinitely.
-- Mitigation path: Set explicit timeouts on the transport.
 
 **No request body size limit for upstream forwarding:**
 - `internal/proxy/pipeline.go`: Request bodies are forwarded as-is to upstream with no size cap. An attacker sending a very large POST body through the proxy could exhaust memory or disk if the upstream is slow.
@@ -121,9 +110,6 @@
 
 **Replace triple-read config parsing with a single-pass approach:**
 - Reading the YAML once into `[]byte`, using that for viper initialisation, strict validation, and rule parsing would eliminate the redundant reads and the associated fragility. See `internal/config/config.go`.
-
-**Add upstream transport timeouts:**
-- Configuring `DialContext` (10 s), `TLSHandshakeTimeout` (10 s), and `ResponseHeaderTimeout` (30 s) on the transport in `internal/proxy/pipeline.go` would prevent goroutine leaks from stalled upstream connections.
 
 **Stream `map_local` responses instead of buffering:**
 - Replacing `os.ReadFile` + `bytes.NewReader` with `http.ServeContent` in `internal/proxy/pipeline.go` would give free Range request support, correct `Last-Modified`/`ETag` handling, and avoid full-file buffering.

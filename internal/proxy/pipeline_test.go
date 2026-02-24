@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -160,6 +161,52 @@ func TestPipeline_RequestHeaderTransform_Upstream(t *testing.T) {
 	}
 	if result.Headers.Get("X-Got-Debug") != "injected" {
 		t.Errorf("upstream received X-Debug: got %q, want injected", result.Headers.Get("X-Got-Debug"))
+	}
+}
+
+func TestPipeline_UpstreamResponseHeaderTimeoutReturns502(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		// Keep the connection open without writing headers so the
+		// response header timeout path is exercised.
+		time.Sleep(200 * time.Millisecond)
+	}()
+
+	host, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	p := proxy.NewPipeline(nil, false).WithTransportTimeouts(proxy.TransportTimeouts{
+		DialTimeout:           100 * time.Millisecond,
+		TLSHandshakeTimeout:   100 * time.Millisecond,
+		ResponseHeaderTimeout: 50 * time.Millisecond,
+		IdleConnTimeout:       100 * time.Millisecond,
+	})
+
+	start := time.Now()
+	result, runErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "GET", Path: "/", Header: make(http.Header),
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	if result.Status != http.StatusBadGateway {
+		t.Fatalf("status: got %d, want %d", result.Status, http.StatusBadGateway)
+	}
+	if d := time.Since(start); d > 500*time.Millisecond {
+		t.Fatalf("timeout handling took too long: %v", d)
 	}
 }
 

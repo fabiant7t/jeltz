@@ -17,14 +17,18 @@ const Version = 1
 
 // Config holds the fully resolved jeltz configuration.
 type Config struct {
-	Listen           string
-	BasePath         string
-	DataDir          string
-	LogLevel         string
-	InsecureUpstream bool
-	DumpTraffic      bool
-	MaxBodyBytes     int64
-	Rules            []RawRule
+	Listen                          string
+	BasePath                        string
+	DataDir                         string
+	LogLevel                        string
+	InsecureUpstream                bool
+	DumpTraffic                     bool
+	MaxBodyBytes                    int64
+	UpstreamDialTimeoutMS           int64
+	UpstreamTLSHandshakeTimeoutMS   int64
+	UpstreamResponseHeaderTimeoutMS int64
+	UpstreamIdleConnTimeoutMS       int64
+	Rules                           []RawRule
 }
 
 // RawRule holds a single rule as-loaded from YAML before type-specific parsing.
@@ -68,26 +72,34 @@ type RawSetOp struct {
 
 // yamlConfig mirrors the YAML schema exactly for strict decoding.
 type yamlConfig struct {
-	Version          int       `yaml:"version"`
-	Listen           string    `yaml:"listen"`
-	BasePath         string    `yaml:"base_path"`
-	DataDir          string    `yaml:"data_dir"`
-	InsecureUpstream bool      `yaml:"insecure_upstream"`
-	DumpTraffic      bool      `yaml:"dump_traffic"`
-	MaxBodyBytes     int64     `yaml:"max_body_bytes"`
-	Rules            []RawRule `yaml:"rules"`
+	Version                         int       `yaml:"version"`
+	Listen                          string    `yaml:"listen"`
+	BasePath                        string    `yaml:"base_path"`
+	DataDir                         string    `yaml:"data_dir"`
+	InsecureUpstream                bool      `yaml:"insecure_upstream"`
+	DumpTraffic                     bool      `yaml:"dump_traffic"`
+	MaxBodyBytes                    int64     `yaml:"max_body_bytes"`
+	UpstreamDialTimeoutMS           int64     `yaml:"upstream_dial_timeout_ms"`
+	UpstreamTLSHandshakeTimeoutMS   int64     `yaml:"upstream_tls_handshake_timeout_ms"`
+	UpstreamResponseHeaderTimeoutMS int64     `yaml:"upstream_response_header_timeout_ms"`
+	UpstreamIdleConnTimeoutMS       int64     `yaml:"upstream_idle_conn_timeout_ms"`
+	Rules                           []RawRule `yaml:"rules"`
 }
 
 // CLIOverrides carries explicitly-set CLI flag values that take precedence
 // over file/env config. Empty string means "not set by CLI".
 type CLIOverrides struct {
-	Listen           string
-	BasePath         string
-	DataDir          string
-	LogLevel         string
-	InsecureUpstream *bool
-	DumpTraffic      *bool
-	MaxBodyBytes     *int64
+	Listen                          string
+	BasePath                        string
+	DataDir                         string
+	LogLevel                        string
+	InsecureUpstream                *bool
+	DumpTraffic                     *bool
+	MaxBodyBytes                    *int64
+	UpstreamDialTimeoutMS           *int64
+	UpstreamTLSHandshakeTimeoutMS   *int64
+	UpstreamResponseHeaderTimeoutMS *int64
+	UpstreamIdleConnTimeoutMS       *int64
 }
 
 // Load reads, validates, and resolves the configuration.
@@ -103,6 +115,10 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 	v.SetDefault("insecure_upstream", false)
 	v.SetDefault("dump_traffic", false)
 	v.SetDefault("max_body_bytes", int64(1048576))
+	v.SetDefault("upstream_dial_timeout_ms", int64(10000))
+	v.SetDefault("upstream_tls_handshake_timeout_ms", int64(10000))
+	v.SetDefault("upstream_response_header_timeout_ms", int64(30000))
+	v.SetDefault("upstream_idle_conn_timeout_ms", int64(60000))
 	v.SetDefault("rules", []any{})
 
 	// Env vars (JELTZ_ prefix).
@@ -142,13 +158,17 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 
 	// Build Config from viper values.
 	cfg := &Config{
-		Listen:           v.GetString("listen"),
-		BasePath:         v.GetString("base_path"),
-		DataDir:          v.GetString("data_dir"),
-		LogLevel:         "info",
-		InsecureUpstream: v.GetBool("insecure_upstream"),
-		DumpTraffic:      v.GetBool("dump_traffic"),
-		MaxBodyBytes:     v.GetInt64("max_body_bytes"),
+		Listen:                          v.GetString("listen"),
+		BasePath:                        v.GetString("base_path"),
+		DataDir:                         v.GetString("data_dir"),
+		LogLevel:                        "info",
+		InsecureUpstream:                v.GetBool("insecure_upstream"),
+		DumpTraffic:                     v.GetBool("dump_traffic"),
+		MaxBodyBytes:                    v.GetInt64("max_body_bytes"),
+		UpstreamDialTimeoutMS:           v.GetInt64("upstream_dial_timeout_ms"),
+		UpstreamTLSHandshakeTimeoutMS:   v.GetInt64("upstream_tls_handshake_timeout_ms"),
+		UpstreamResponseHeaderTimeoutMS: v.GetInt64("upstream_response_header_timeout_ms"),
+		UpstreamIdleConnTimeoutMS:       v.GetInt64("upstream_idle_conn_timeout_ms"),
 	}
 
 	// Parse rules via yaml.v3 for proper typing (viper loses type info).
@@ -175,6 +195,25 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 	}
 	if cli.MaxBodyBytes != nil {
 		cfg.MaxBodyBytes = *cli.MaxBodyBytes
+	}
+	if cli.UpstreamDialTimeoutMS != nil {
+		cfg.UpstreamDialTimeoutMS = *cli.UpstreamDialTimeoutMS
+	}
+	if cli.UpstreamTLSHandshakeTimeoutMS != nil {
+		cfg.UpstreamTLSHandshakeTimeoutMS = *cli.UpstreamTLSHandshakeTimeoutMS
+	}
+	if cli.UpstreamResponseHeaderTimeoutMS != nil {
+		cfg.UpstreamResponseHeaderTimeoutMS = *cli.UpstreamResponseHeaderTimeoutMS
+	}
+	if cli.UpstreamIdleConnTimeoutMS != nil {
+		cfg.UpstreamIdleConnTimeoutMS = *cli.UpstreamIdleConnTimeoutMS
+	}
+
+	if cfg.UpstreamDialTimeoutMS < 0 ||
+		cfg.UpstreamTLSHandshakeTimeoutMS < 0 ||
+		cfg.UpstreamResponseHeaderTimeoutMS < 0 ||
+		cfg.UpstreamIdleConnTimeoutMS < 0 {
+		return nil, fmt.Errorf("upstream timeout values must be >= 0")
 	}
 
 	// Resolve base_path.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -20,9 +21,9 @@ import (
 type FlowContext struct {
 	Logger     *slog.Logger
 	ClientAddr string
-	Proto      string          // "http/1.1" or "h2"
-	Scheme     string          // "http" or "https"
-	Host       string          // hostname only, without port
+	Proto      string // "http/1.1" or "h2"
+	Scheme     string // "http" or "https"
+	Host       string // hostname only, without port
 	Port       string
 	Method     string
 	Path       string
@@ -59,21 +60,46 @@ type ResponseResult struct {
 
 // Pipeline executes the full request/response processing chain.
 type Pipeline struct {
-	ruleset          *rules.RuleSet
-	transport        *http.Transport // shared; created once
-	dumpTraffic      bool
-	maxBodyBytes     int64
+	ruleset      *rules.RuleSet
+	transport    *http.Transport // shared; created once
+	dumpTraffic  bool
+	maxBodyBytes int64
+}
+
+// TransportTimeouts configures upstream transport timeouts.
+type TransportTimeouts struct {
+	DialTimeout           time.Duration
+	TLSHandshakeTimeout   time.Duration
+	ResponseHeaderTimeout time.Duration
+	IdleConnTimeout       time.Duration
+}
+
+// DefaultTransportTimeouts returns the upstream transport timeout defaults.
+func DefaultTransportTimeouts() TransportTimeouts {
+	return TransportTimeouts{
+		DialTimeout:           10 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		IdleConnTimeout:       60 * time.Second,
+	}
 }
 
 // NewPipeline creates a Pipeline.
 func NewPipeline(rs *rules.RuleSet, insecureUpstream bool) *Pipeline {
+	timeouts := DefaultTransportTimeouts()
 	return &Pipeline{
 		ruleset: rs,
 		transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: timeouts.DialTimeout,
+			}).DialContext,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: insecureUpstream, //nolint:gosec
 			},
-			Proxy: nil,
+			TLSHandshakeTimeout:   timeouts.TLSHandshakeTimeout,
+			ResponseHeaderTimeout: timeouts.ResponseHeaderTimeout,
+			IdleConnTimeout:       timeouts.IdleConnTimeout,
+			Proxy:                 nil,
 		},
 	}
 }
@@ -82,6 +108,15 @@ func NewPipeline(rs *rules.RuleSet, insecureUpstream bool) *Pipeline {
 func (p *Pipeline) WithDumpTraffic(maxBodyBytes int64) *Pipeline {
 	p.dumpTraffic = true
 	p.maxBodyBytes = maxBodyBytes
+	return p
+}
+
+// WithTransportTimeouts sets upstream transport timeout values.
+func (p *Pipeline) WithTransportTimeouts(timeouts TransportTimeouts) *Pipeline {
+	p.transport.DialContext = (&net.Dialer{Timeout: timeouts.DialTimeout}).DialContext
+	p.transport.TLSHandshakeTimeout = timeouts.TLSHandshakeTimeout
+	p.transport.ResponseHeaderTimeout = timeouts.ResponseHeaderTimeout
+	p.transport.IdleConnTimeout = timeouts.IdleConnTimeout
 	return p
 }
 
@@ -293,7 +328,7 @@ func WriteResponse(w http.ResponseWriter, result *ResponseResult, fc *FlowContex
 	w.WriteHeader(result.Status)
 	if result.Body != nil {
 		io.Copy(w, result.Body) //nolint:errcheck
-		result.Body.Close()    //nolint:errcheck
+		result.Body.Close()     //nolint:errcheck
 	}
 	fc.Logger.Info("request",
 		slog.String(logging.KeyComponent, "pipeline"),

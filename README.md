@@ -107,8 +107,12 @@ The CA certificate must be trusted by your OS or browser before HTTPS intercepti
 | `-insecure-upstream` | `false` | Skip TLS certificate verification for upstream connections |
 | `-dump-traffic` | `false` | Log request/response headers and body snippets at debug level |
 | `-max-body-bytes` | `1048576` | Max body bytes to log when `-dump-traffic` is enabled |
+| `-upstream-dial-timeout-ms` | `10000` | Upstream TCP dial timeout in milliseconds |
+| `-upstream-tls-handshake-timeout-ms` | `10000` | Upstream TLS handshake timeout in milliseconds |
+| `-upstream-response-header-timeout-ms` | `30000` | Upstream response header timeout in milliseconds |
+| `-upstream-idle-conn-timeout-ms` | `60000` | Upstream idle connection timeout in milliseconds |
 
-CLI flags override config file values. Config file values override environment variables (`JELTZ_` prefix). Environment variables override built-in defaults.
+CLI flags override config file values. For bool/int flags, overrides apply only when the flag is explicitly provided on the CLI. Config file values override environment variables (`JELTZ_` prefix). Environment variables override built-in defaults.
 
 ---
 
@@ -124,6 +128,10 @@ data_dir: ""                 # CA/cert storage; empty = XDG data dir
 insecure_upstream: false     # skip TLS verification upstream
 dump_traffic: false          # log headers + body snippets
 max_body_bytes: 1048576      # body dump limit in bytes
+upstream_dial_timeout_ms: 10000              # upstream TCP dial timeout
+upstream_tls_handshake_timeout_ms: 10000     # upstream TLS handshake timeout
+upstream_response_header_timeout_ms: 30000   # upstream response header timeout
+upstream_idle_conn_timeout_ms: 60000         # upstream idle conn timeout
 rules: []                    # ordered list of rules
 ```
 
@@ -232,6 +240,10 @@ version: 1
 listen: "127.0.0.1:8080"
 base_path: "."
 insecure_upstream: false
+upstream_dial_timeout_ms: 10000
+upstream_tls_handshake_timeout_ms: 10000
+upstream_response_header_timeout_ms: 30000
+upstream_idle_conn_timeout_ms: 60000
 
 rules:
   # Strip GDPR consent cookies from every request
