@@ -16,7 +16,7 @@
 
 **Phase:** 1 — Config Read-Once Refactor
 **Plan:** 01 — Complete
-**Status:** Phase complete
+**Status:** Milestone complete
 
 ```
 Progress: [====================] 100%
