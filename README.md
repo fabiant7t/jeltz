@@ -22,7 +22,7 @@ HTTP/2 is fully supported on the client-to-proxy leg of HTTPS connections. The c
 
 ## Requirements
 
-- Go 1.26+
+- Go 1.25+
 
 ---
 
