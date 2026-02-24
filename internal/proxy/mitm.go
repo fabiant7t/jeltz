@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -23,8 +24,7 @@ func (s *Server) mitmHandler(clientConn net.Conn, targetHost, targetPort, client
 	defer clientConn.Close()
 
 	// Signal tunnel established.
-	_, err := clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
-	if err != nil {
+	if _, err := clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
 		s.logger.Error("mitm write 200",
 			slog.String(logging.KeyComponent, "mitm"),
 			slog.String(logging.KeyEvent, "mitm_handshake_error"),
@@ -97,6 +97,9 @@ func (s *Server) serveH2(tlsConn *tls.Conn, targetHost, targetPort, clientAddr s
 
 		result, err := s.pipeline.Run(fc)
 		if err != nil {
+			// Drain and close request body before returning error.
+			io.Copy(io.Discard, r.Body) //nolint:errcheck
+			r.Body.Close()              //nolint:errcheck
 			s.logger.Error("h2 pipeline error",
 				slog.String(logging.KeyComponent, "mitm"),
 				slog.String(logging.KeyEvent, "h2_serve_error"),
@@ -138,7 +141,12 @@ func (s *Server) serveH2(tlsConn *tls.Conn, targetHost, targetPort, clientAddr s
 }
 
 // serveHTTP1 serves HTTP/1.1 requests over the hijacked TLS connection in a loop.
+// connCtx is cancelled when the connection is closed.
 func (s *Server) serveHTTP1(tlsConn *tls.Conn, targetHost, targetPort, clientAddr string) {
+	// Tie a context to this connection's lifetime for upstream cancellation.
+	connCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	br := bufio.NewReader(tlsConn)
 	for {
 		req, err := http.ReadRequest(br)
@@ -166,6 +174,7 @@ func (s *Server) serveHTTP1(tlsConn *tls.Conn, targetHost, targetPort, clientAdd
 			RawQuery:   req.URL.RawQuery,
 			Header:     req.Header.Clone(),
 			Body:       req.Body,
+			Ctx:        connCtx,
 		}
 
 		result, err := s.pipeline.Run(fc)
@@ -202,7 +211,15 @@ func (s *Server) serveHTTP1(tlsConn *tls.Conn, targetHost, targetPort, clientAdd
 	}
 }
 
+// writeHTTP1Response writes result to conn. The body is read by resp.Write and
+// then closed — no separate defer close is needed.
 func writeHTTP1Response(conn net.Conn, result *ResponseResult) error {
+	body := result.Body
+	if body == nil {
+		body = http.NoBody
+	}
+	defer body.Close() //nolint:errcheck
+
 	resp := &http.Response{
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
@@ -210,16 +227,8 @@ func writeHTTP1Response(conn net.Conn, result *ResponseResult) error {
 		StatusCode: result.Status,
 		Status:     fmt.Sprintf("%d %s", result.Status, http.StatusText(result.Status)),
 		Header:     result.Headers,
-		Body:       result.Body,
+		Body:       body,
 	}
-	if result.Body == nil {
-		resp.Body = http.NoBody
-	}
-	defer func() {
-		if result.Body != nil {
-			result.Body.Close() //nolint:errcheck
-		}
-	}()
 	return resp.Write(conn)
 }
 

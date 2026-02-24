@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/fabiant7t/jeltz/internal/config"
-	"github.com/fabiant7t/jeltz/internal/logging"
 	"github.com/fabiant7t/jeltz/internal/proxy"
 	"github.com/fabiant7t/jeltz/internal/rules"
 )
@@ -236,7 +235,7 @@ func TestWriteResponse(t *testing.T) {
 	fc := &proxy.FlowContext{
 		Logger:     testLogger(),
 		ClientAddr: "127.0.0.1:1234",
-		Proto:      logging.KeyProto,
+		Proto:      "http/1.1",
 		Scheme:     "https",
 		Host:       "example.com",
 		Method:     "GET",

@@ -20,15 +20,15 @@ import (
 type FlowContext struct {
 	Logger     *slog.Logger
 	ClientAddr string
-	Proto      string // "http/1.1" or "h2"
-	Scheme     string // "http" or "https"
-	Host       string // hostname only, without port
+	Proto      string          // "http/1.1" or "h2"
+	Scheme     string          // "http" or "https"
+	Host       string          // hostname only, without port
 	Port       string
 	Method     string
 	Path       string
 	RawQuery   string
-	Header     http.Header    // mutable request headers
-	Body       io.ReadCloser  // may be nil
+	Header     http.Header     // mutable request headers
+	Body       io.ReadCloser   // may be nil
 	Ctx        context.Context // per-request context for cancellation
 }
 
@@ -60,14 +60,22 @@ type ResponseResult struct {
 // Pipeline executes the full request/response processing chain.
 type Pipeline struct {
 	ruleset          *rules.RuleSet
-	insecureUpstream bool
+	transport        *http.Transport // shared; created once
 	dumpTraffic      bool
 	maxBodyBytes     int64
 }
 
 // NewPipeline creates a Pipeline.
 func NewPipeline(rs *rules.RuleSet, insecureUpstream bool) *Pipeline {
-	return &Pipeline{ruleset: rs, insecureUpstream: insecureUpstream}
+	return &Pipeline{
+		ruleset: rs,
+		transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: insecureUpstream, //nolint:gosec
+			},
+			Proxy: nil,
+		},
+	}
 }
 
 // WithDumpTraffic enables traffic dumping with the given body byte limit.
@@ -88,6 +96,11 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 				hr.Request.Apply(fc.Header)
 			}
 		}
+	}
+
+	// Dump request headers after transforms.
+	if p.dumpTraffic {
+		dumpHeaders(fc.Logger, "request", fc.Header)
 	}
 
 	// Step 3: choose body source — map-local first-match, else upstream.
@@ -137,6 +150,12 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		mapLocalOps.Apply(result.Headers)
 	}
 
+	// Dump response headers after all transforms.
+	if p.dumpTraffic {
+		dumpHeaders(fc.Logger, "response", result.Headers)
+		result.Body = dumpBody(fc.Logger, result.Body, p.maxBodyBytes)
+	}
+
 	return result, nil
 }
 
@@ -159,8 +178,12 @@ func serveLocal(mlr *rules.MapLocalResult) (*ResponseResult, error) {
 		return nil, fmt.Errorf("reading local file %q: %w", mlr.FSTarget, err)
 	}
 
-	ct := rules.DetectContentType(mlr.FSTarget, mlr.ContentType, func(p string) ([]byte, error) {
-		return data[:min(512, len(data))], nil
+	snip := data
+	if len(snip) > 512 {
+		snip = snip[:512]
+	}
+	ct := rules.DetectContentType(mlr.FSTarget, mlr.ContentType, func(_ string) ([]byte, error) {
+		return snip, nil
 	})
 
 	h := make(http.Header)
@@ -174,7 +197,8 @@ func serveLocal(mlr *rules.MapLocalResult) (*ResponseResult, error) {
 	}, nil
 }
 
-// roundtrip performs an upstream HTTP request using fc's context.
+// roundtrip performs an upstream HTTP request using fc's context and the
+// shared transport (connection pooling).
 func (p *Pipeline) roundtrip(fc *FlowContext) (*ResponseResult, error) {
 	host := fc.Host
 	if fc.Port != "" {
@@ -205,13 +229,7 @@ func (p *Pipeline) roundtrip(fc *FlowContext) (*ResponseResult, error) {
 	}
 	httpx.RemoveHopByHop(outReq.Header)
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: p.insecureUpstream, //nolint:gosec
-		},
-		Proxy: nil,
-	}
-	resp, err := tr.RoundTrip(outReq)
+	resp, err := p.transport.RoundTrip(outReq)
 	if err != nil {
 		return emptyResult(http.StatusBadGateway, "upstream"), nil
 	}
@@ -225,7 +243,7 @@ func (p *Pipeline) roundtrip(fc *FlowContext) (*ResponseResult, error) {
 	}, nil
 }
 
-// dumpHeaders logs request/response headers, redacting sensitive values.
+// dumpHeaders logs request/response headers at debug level, redacting sensitive values.
 func dumpHeaders(logger *slog.Logger, direction string, h http.Header) {
 	redact := map[string]struct{}{
 		"Authorization": {},
@@ -246,6 +264,23 @@ func dumpHeaders(logger *slog.Logger, direction string, h http.Header) {
 		}
 	}
 	logger.Debug("traffic_headers", attrs...)
+}
+
+// dumpBody wraps body so the first maxBytes bytes are logged then passed through.
+func dumpBody(logger *slog.Logger, body io.ReadCloser, maxBytes int64) io.ReadCloser {
+	if body == nil || maxBytes <= 0 {
+		return body
+	}
+	snip, err := io.ReadAll(io.LimitReader(body, maxBytes))
+	body.Close() //nolint:errcheck
+	if err == nil && len(snip) > 0 {
+		logger.Debug("traffic_body",
+			slog.String(logging.KeyComponent, "dump"),
+			slog.String("snippet", string(snip)),
+			slog.Int("bytes", len(snip)),
+		)
+	}
+	return io.NopCloser(bytes.NewReader(snip))
 }
 
 // WriteResponse writes result to w and logs the completed flow.
@@ -272,11 +307,4 @@ func WriteResponse(w http.ResponseWriter, result *ResponseResult, fc *FlowContex
 		slog.Int64(logging.KeyDurationMS, time.Since(start).Milliseconds()),
 		slog.String(logging.KeyProto, fc.Proto),
 	)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

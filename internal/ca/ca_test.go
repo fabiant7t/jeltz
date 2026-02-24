@@ -1,7 +1,6 @@
 package ca_test
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"os"
 	"path/filepath"
@@ -170,26 +169,3 @@ func TestLeafCert_VerifiableWithCA(t *testing.T) {
 	}
 }
 
-func TestLeafCert_TLSHandshake(t *testing.T) {
-	dir := t.TempDir()
-	c, err := ca.Load(dir)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	caCertPEM, _ := os.ReadFile(c.CertPath())
-	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM(caCertPEM)
-
-	// Use net.Pipe for in-process TLS handshake.
-	import_net_Pipe := func() (interface{}, interface{}) { return nil, nil }
-	_ = import_net_Pipe
-	// Verify via tls.Config instead.
-	tlsCert, _ := c.LeafCert("tls.test")
-	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{*tlsCert},
-	}
-	_ = tlsConf
-	// The TLS handshake integration is covered by the L8 integration test.
-	// This test is satisfied by TestLeafCert_VerifiableWithCA.
-}

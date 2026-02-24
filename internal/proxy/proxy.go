@@ -101,8 +101,11 @@ func (s *Server) handleCONNECT(w http.ResponseWriter, r *http.Request) {
 }
 
 // rawTunnel dials target and bidirectionally copies between clientConn and it.
+// When either direction finishes, the corresponding connection is closed to
+// unblock the other goroutine. Both goroutines are awaited before returning.
 func rawTunnel(clientConn net.Conn, targetAddr string, logger *slog.Logger) {
 	defer clientConn.Close()
+
 	upstream, err := net.DialTimeout("tcp", targetAddr, 10*time.Second)
 	if err != nil {
 		logger.Error("tunnel dial",
@@ -113,13 +116,24 @@ func rawTunnel(clientConn net.Conn, targetAddr string, logger *slog.Logger) {
 		writeHTTP1Error(clientConn, http.StatusBadGateway)
 		return
 	}
-	defer upstream.Close()
 
-	_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+	if _, err := clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
+		upstream.Close()
+		return
+	}
 
 	done := make(chan struct{}, 2)
-	go func() { io.Copy(upstream, clientConn); done <- struct{}{} }()   //nolint:errcheck
-	go func() { io.Copy(clientConn, upstream); done <- struct{}{} }()   //nolint:errcheck
+	go func() {
+		io.Copy(upstream, clientConn) //nolint:errcheck
+		upstream.Close()
+		done <- struct{}{}
+	}()
+	go func() {
+		io.Copy(clientConn, upstream) //nolint:errcheck
+		clientConn.Close()
+		done <- struct{}{}
+	}()
+	<-done
 	<-done
 }
 
@@ -166,14 +180,13 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fallback: direct forward (pipeline not yet configured).
+	// Fallback: direct forward (pipeline not configured).
 	outReq := r.Clone(r.Context())
 	outReq.RequestURI = ""
 	outReq.Header = r.Header.Clone()
 	httpx.RemoveHopByHop(outReq.Header)
 
-	tr := &http.Transport{}
-	resp, err := tr.RoundTrip(outReq)
+	resp, err := http.DefaultTransport.RoundTrip(outReq)
 	if err != nil {
 		s.logger.Error("upstream error",
 			slog.String(logging.KeyComponent, "proxy"),
