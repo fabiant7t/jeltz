@@ -6,7 +6,7 @@ package ca
 //   - unencrypted CertBag (cert safe bag)
 //   - PBE-SHA1-3DES ShroudedKeyBag (key safe bag, RFC 7292 Appendix B KDF)
 //   - HMAC-SHA1 MAC (RFC 7292 Appendix B KDF, ID=3)
-//   - empty password encoded as null-terminated UTF-16BE: []byte{0, 0}
+//   - password "jeltz" encoded as BMPString (UTF-16BE + null terminator)
 
 import (
 	"crypto/cipher"
@@ -41,14 +41,19 @@ type p12PFX struct {
 	MacData  p12MacData
 }
 
+// p12ContentInfo represents a PKCS#7 ContentInfo.
+// Content is encoded as [0] EXPLICIT manually (see explicit0) because
+// encoding/asn1 ignores struct tags when RawValue.FullBytes is set.
 type p12ContentInfo struct {
 	ContentType asn1.ObjectIdentifier
-	Content     asn1.RawValue `asn1:"tag:0,explicit,optional"`
+	Content     asn1.RawValue `asn1:"optional"`
 }
 
+// p12SafeBag represents a PKCS#12 SafeBag.
+// Value is encoded as [0] EXPLICIT manually (see explicit0).
 type p12SafeBag struct {
 	ID         asn1.ObjectIdentifier
-	Value      asn1.RawValue  `asn1:"tag:0,explicit"`
+	Value      asn1.RawValue  `asn1:"optional"`
 	Attributes []p12Attribute `asn1:"set,optional"`
 }
 
@@ -57,9 +62,11 @@ type p12Attribute struct {
 	Value asn1.RawValue
 }
 
+// p12CertBag represents a PKCS#12 CertBag.
+// Value is encoded as [0] EXPLICIT manually (see explicit0).
 type p12CertBag struct {
 	ID    asn1.ObjectIdentifier
-	Value asn1.RawValue `asn1:"tag:0,explicit"`
+	Value asn1.RawValue `asn1:"optional"`
 }
 
 type p12EncryptedPKI struct {
@@ -99,6 +106,13 @@ func p12PasswordBytes() []byte {
 	b[len(s)*2] = 0
 	b[len(s)*2+1] = 0
 	return b
+}
+
+// explicit0 wraps inner DER bytes in a [0] EXPLICIT context tag.
+// Go's encoding/asn1 ignores struct tags when RawValue.FullBytes is set,
+// so all [0] EXPLICIT wrappers must be constructed manually this way.
+func explicit0(inner []byte) asn1.RawValue {
+	return asn1.RawValue{Class: 2, Tag: 0, IsCompound: true, Bytes: inner}
 }
 
 // ---- Entry point --------------------------------------------------------
@@ -185,7 +199,7 @@ func marshalCertBag(cert *x509.Certificate, keyID []byte) ([]byte, error) {
 	// CertBag ::= SEQUENCE { certId OID, certValue [0] EXPLICIT OCTET STRING }
 	certBagDER, err := asn1.Marshal(p12CertBag{
 		ID:    oidP12X509Cert,
-		Value: asn1.RawValue{FullBytes: certOctetDER}, // [0] EXPLICIT { OCTET STRING }
+		Value: explicit0(certOctetDER), // [0] EXPLICIT { OCTET STRING }
 	})
 	if err != nil {
 		return nil, err
@@ -197,7 +211,7 @@ func marshalCertBag(cert *x509.Certificate, keyID []byte) ([]byte, error) {
 	// SafeBag ::= SEQUENCE { bagId OID, bagValue [0] EXPLICIT CertBag, bagAttributes SET }
 	return asn1.Marshal(p12SafeBag{
 		ID:         oidP12CertBag,
-		Value:      asn1.RawValue{FullBytes: certBagDER}, // [0] EXPLICIT { CertBag }
+		Value:      explicit0(certBagDER), // [0] EXPLICIT { CertBag }
 		Attributes: []p12Attribute{attr},
 	})
 }
@@ -247,22 +261,23 @@ func marshalKeyBag(key *rsa.PrivateKey, password, keyID []byte) ([]byte, error) 
 	}
 	return asn1.Marshal(p12SafeBag{
 		ID:         oidP12KeyBag,
-		Value:      asn1.RawValue{FullBytes: epkiDER}, // [0] EXPLICIT { EncryptedPrivateKeyInfo }
+		Value:      explicit0(epkiDER), // [0] EXPLICIT { EncryptedPrivateKeyInfo }
 		Attributes: []p12Attribute{attr},
 	})
 }
 
 // makeDataCI creates a pkcs-7-data ContentInfo wrapping data in an OCTET STRING.
 func makeDataCI(data []byte) (p12ContentInfo, error) {
-	// Content = [0] EXPLICIT OCTET STRING { data }.
-	// Using FullBytes so the struct tag wraps it in [0] EXPLICIT.
+	// Content ::= [0] EXPLICIT OCTET STRING { data }.
+	// The [0] EXPLICIT wrapper is built manually via explicit0 because
+	// encoding/asn1 ignores struct tags when RawValue.FullBytes is set.
 	octetDER, err := asn1.Marshal(data)
 	if err != nil {
 		return p12ContentInfo{}, err
 	}
 	return p12ContentInfo{
 		ContentType: oidP12Data,
-		Content:     asn1.RawValue{FullBytes: octetDER},
+		Content:     explicit0(octetDER), // [0] EXPLICIT { OCTET STRING }
 	}, nil
 }
 
