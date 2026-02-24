@@ -50,11 +50,6 @@
 - Risk: Latency spike on first connection to many distinct hosts simultaneously (e.g., browser startup loading many resources).
 - Mitigation path: Use a per-host lock or generate certs outside the global lock, inserting only under the lock.
 
-**`errTraversal` is compared by value (`==`), not with `errors.Is`:**
-- `internal/rules/maplocal.go` line 146: `IsTraversal` does `return err == errTraversal`. If the error is ever wrapped (e.g., `fmt.Errorf("...: %w", errTraversal)`), `IsTraversal` returns false and the traversal attempt falls through as a 500 instead of a 403.
-- Files: `internal/rules/maplocal.go`
-- Mitigation path: Use a sentinel type and `errors.As`, or define a custom error type.
-
 **No rate-limiting or connection cap on the proxy listener:**
 - `internal/proxy/proxy.go`: The `http.Server` has no maximum connections setting. A client could open many simultaneous CONNECT tunnels, each spawning goroutines and issuing leaf certs.
 - Risk: Low for a single-developer localhost tool; relevant if exposed beyond loopback.

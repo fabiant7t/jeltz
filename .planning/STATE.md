@@ -8,16 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Milestone v1.11 — remaining runtime reliability gaps (CA/cache risk items, platform coverage).
+**Current focus:** Milestone v1.12 — remaining reliability gaps (CA/cache risk items, platform coverage).
 
 ---
 
 ## Current Position
 
 **Phase:** Milestone transition
-**Plan:** v1.11 reliability follow-ups
-**Status:** v1.10 complete; next milestone defined
-**Last activity:** 2026-02-24 — Added configurable upstream request body limit + 413 enforcement tests
+**Plan:** v1.12 reliability follow-ups
+**Status:** v1.11 complete; next milestone defined
+**Last activity:** 2026-02-24 — Switched traversal detection to errors.Is + added wrapped-sentinel tests
 
 ---
 
@@ -39,6 +39,7 @@
 | rawTunnel synchronization uses WaitGroup | Improve maintainability without changing tunnel behavior |
 | map_local paths validated at compile-time | Convert runtime misconfig 500s into startup-time compile errors |
 | Upstream request body limits configurable | Optional safeguard against oversized forwarded payloads |
+| Traversal detection matches wrapped errors | Keep traversal 403 mapping resilient to error wrapping |
 
 ### Active Constraints
 
@@ -67,8 +68,10 @@ None.
 - [x] Execute Phase 8
 - [x] Plan Phase 9
 - [x] Execute Phase 9
-- [ ] Plan Phase 10
-- [ ] Execute Phase 10
+- [x] Plan Phase 10
+- [x] Execute Phase 10
+- [ ] Plan Phase 11
+- [ ] Execute Phase 11
 
 ---
 

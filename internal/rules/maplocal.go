@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -129,7 +130,7 @@ func (r *MapLocalRule) Resolve(fm FlowMeta) (*MapLocalResult, error) {
 		}
 		rel, err := filepath.Rel(absBase, absCandidate)
 		if err != nil || strings.HasPrefix(rel, "..") {
-			return nil, errTraversal
+			return nil, fmt.Errorf("resolved path escapes base: %w", errTraversal)
 		}
 		target = absCandidate
 	}
@@ -143,10 +144,10 @@ func (r *MapLocalRule) Resolve(fm FlowMeta) (*MapLocalResult, error) {
 }
 
 // errTraversal is a sentinel error for path traversal attempts.
-var errTraversal = fmt.Errorf("path traversal detected")
+var errTraversal = errors.New("path traversal detected")
 
 // IsTraversal reports whether err is a traversal protection error.
-func IsTraversal(err error) bool { return err == errTraversal }
+func IsTraversal(err error) bool { return errors.Is(err, errTraversal) }
 
 // DetectContentType returns the MIME type for a file path.
 // Uses ContentType override → mime.TypeByExtension → http.DetectContentType

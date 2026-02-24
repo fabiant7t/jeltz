@@ -37,14 +37,14 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Per-host cert cache eviction — not requested
 - Windows build target — not requested
 
-## Current Milestone: v1.8 — Remaining CLI/Runtime Reliability Gaps
+## Current Milestone: v1.12 — Remaining Reliability Gaps
 
-**Goal:** Address the next reliability risks after CLI/output coverage and proxy-path hardening.
+**Goal:** Address the remaining reliability risks after proxy/path hardening and traversal error handling improvements.
 
 **Target features:**
-- Clarify and, where feasible, simplify `rawTunnel` goroutine synchronization (use `sync.WaitGroup`)
-- Evaluate request body limit strategy for upstream forwarding
-- Improve map-local startup-time path validation diagnostics
+- Improve non-Linux coverage strategy for `pkg/xdg`
+- Revisit CA/cache risk items (leaf validity/key size and cache growth)
+- Keep reliability docs and risk register current with implemented mitigations
 
 ## Completed Milestone: v1.1 — Proxy Handler Tests
 
@@ -134,6 +134,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Enforce limit in pipeline forwarding path with `413 Request Entity Too Large`
 - Add tests for within-limit passthrough and over-limit rejection
 
+## Completed Milestone: v1.11 — Traversal Error Wrapping Safety
+
+**Goal:** Ensure traversal detection remains correct when errors are wrapped.
+
+**Target features:**
+- Switch traversal sentinel detection to `errors.Is`
+- Return wrapped traversal sentinel from map-local resolve path
+- Add tests for direct and wrapped traversal detection
+
 ## Context
 
 Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
@@ -159,6 +168,7 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 | rawTunnel waits via WaitGroup (v1.8) | Remove fragile goroutine-count/channel coupling | ✓ Complete |
 | map_local path validated at compile time (v1.9) | Prevent runtime 500 from missing filesystem paths | ✓ Complete |
 | Upstream request body limit configurable (v1.10) | Allow explicit protection against oversized forwarded request bodies | ✓ Complete |
+| Traversal detection uses errors.Is (v1.11) | Preserve correct 403 mapping even when errors are wrapped | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.10 implementation*
+*Last updated: 2026-02-24 after milestone v1.11 implementation*
