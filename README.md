@@ -71,6 +71,12 @@ On first run jeltz generates a root CA (`ca.key.pem` + `ca.crt.pem`) in its data
 jeltz ca-path
 ```
 
+### Print the CA bundle path
+
+```sh
+jeltz ca-p12-path
+```
+
 ### Print platform-specific installation instructions
 
 ```sh
