@@ -4,6 +4,8 @@ A local developer HTTPS proxy with MITM interception, rule-based request/respons
 
 Named after Prostetnic Vogon Jeltz from *The Hitchhiker's Guide to the Galaxy*.
 
+It provides functionality similar to tools like Charles Proxy and mitmproxy, focused on a lightweight local developer workflow.
+
 ---
 
 ## What it does
