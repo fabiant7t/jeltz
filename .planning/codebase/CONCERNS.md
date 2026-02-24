@@ -10,11 +10,6 @@
 - The P12 bundle password `"jeltz"` is a compile-time constant in `internal/ca/ca.go` (`P12Password = "jeltz"`) and is printed on the startup banner in `cmd/jeltz/banner.go` (`dim("(password: "+ca.P12Password+")")`). It is also documented verbatim in README.md.
 - **Decision:** Intentional. The password is a convenience for importing the CA into browsers/OS trust stores. Security relies on filesystem permissions protecting `ca.p12`, not the password. No action needed.
 
-**Leaf certificates never expire in practice (100-year validity):**
-- Both the CA certificate and all per-host leaf certificates are issued with `validity = 100 * 365 * 24 * time.Hour` (`internal/ca/ca.go`). Leaf certs use 2048-bit RSA keys which may be considered weak before that expiry.
-- Impact: Compromised leaf keys remain usable for 100 years; browsers may reject 100-year certificates in future policy updates.
-- Mitigation path: Reduce leaf validity to 1–2 years and implement automatic re-issuance on expiry.
-
 **Leaf certs use only 2048-bit RSA keys:**
 - `internal/ca/ca.go` line 170: `pkgca.IssueLeaf(ca.key, ca.cert, host, 2048, validity)`. The root CA uses 3072 bits, but each issued leaf cert uses 2048 bits.
 - Impact: Weaker than the CA, inconsistent with modern recommendations (NIST recommends 3072+ after 2030).
@@ -37,12 +32,12 @@
 
 ## Risks
 
-**Leaf certificate disk cache is never pruned:**
-- `internal/ca/ca.go`: Leaf certs are written to `~/.local/share/jeltz/certs/<host>.pem` and cached in memory indefinitely. No eviction or expiry check occurs when loading from disk.
-- Risk: A long-running instance will accumulate stale, potentially compromised leaf certs on disk and in memory. The memory cache grows unbounded over the process lifetime as new hosts are visited.
+**Leaf certificate cache size is fixed to 1024 entries (LRU):**
+- `internal/ca/ca.go`: Leaf certs are cached in-memory only with a fixed cap (`leafCacheMaxEntries = 1024`). Evicted hosts require re-issuance on next request.
+- Risk: Low for development usage, but frequent host churn can increase CPU from repeated leaf issuance.
 
 **Single global `sync.Mutex` on the CA for all leaf cert issuance:**
-- `internal/ca/ca.go` lines 88–116: `ca.mu.Lock()` is held for the entire duration of `LeafCert`, including disk I/O and RSA key generation (for new hosts). Under concurrent HTTPS CONNECT requests to many previously-unseen hosts, all goroutines serialize on this one lock.
+- `internal/ca/ca.go`: `ca.mu.Lock()` is held for the entire duration of `LeafCert`, including RSA key generation for new hosts. Under concurrent HTTPS CONNECT requests to many previously-unseen hosts, all goroutines serialize on this one lock.
 - Risk: Latency spike on first connection to many distinct hosts simultaneously (e.g., browser startup loading many resources).
 - Mitigation path: Use a per-host lock or generate certs outside the global lock, inserting only under the lock.
 

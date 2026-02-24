@@ -2,6 +2,7 @@
 package ca
 
 import (
+	"container/list"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -17,16 +18,16 @@ import (
 )
 
 const (
-	caKeyFile  = "ca.key.pem"
-	caCertFile = "ca.crt.pem"
-	caP12File  = "ca.p12"
-	certsDir   = "certs"
+	caKeyFile           = "ca.key.pem"
+	caCertFile          = "ca.crt.pem"
+	caP12File           = "ca.p12"
+	leafCacheMaxEntries = 1024
 
 	// P12Password is the fixed password for all jeltz PKCS#12 bundles.
 	P12Password = "jeltz"
 
-	// 100-year validity as required by spec.
-	validity = 100 * 365 * 24 * time.Hour
+	// One-year validity for both root and leaf certs.
+	validity = 365 * 24 * time.Hour
 )
 
 // CA holds the loaded root CA key and certificate plus a thread-safe
@@ -37,8 +38,9 @@ type CA struct {
 	cert    *x509.Certificate
 	raw     []byte // DER-encoded CA cert (for tls.Certificate)
 
-	mu    sync.Mutex
-	cache map[string]*tls.Certificate // host → leaf cert
+	mu       sync.Mutex
+	cache    map[string]*list.Element // host → *list.Element(cacheEntry)
+	cacheLRU *list.List               // front=most recent, back=least recent
 }
 
 // Load loads or creates the CA from dataDir.
@@ -89,15 +91,9 @@ func (ca *CA) LeafCert(host string) (*tls.Certificate, error) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
 
-	if cert, ok := ca.cache[host]; ok {
-		return cert, nil
-	}
-
-	// Try loading from disk cache.
-	diskPath := filepath.Join(ca.dataDir, certsDir, sanitizeHost(host)+".pem")
-	if cert, err := loadLeafFromDisk(diskPath); err == nil {
-		ca.cache[host] = cert
-		return cert, nil
+	if elem, ok := ca.cache[host]; ok {
+		ca.cacheLRU.MoveToFront(elem)
+		return elem.Value.(*cacheEntry).cert, nil
 	}
 
 	// Issue a new leaf cert.
@@ -106,13 +102,15 @@ func (ca *CA) LeafCert(host string) (*tls.Certificate, error) {
 		return nil, fmt.Errorf("issuing cert for %q: %w", host, err)
 	}
 
-	// Persist to disk.
-	if err := saveLeafToDisk(diskPath, cert); err != nil {
-		// Non-fatal: memory cache still works.
-		_ = err
+	elem := ca.cacheLRU.PushFront(&cacheEntry{host: host, cert: cert})
+	ca.cache[host] = elem
+	if ca.cacheLRU.Len() > leafCacheMaxEntries {
+		if back := ca.cacheLRU.Back(); back != nil {
+			ent := back.Value.(*cacheEntry)
+			delete(ca.cache, ent.host)
+			ca.cacheLRU.Remove(back)
+		}
 	}
-
-	ca.cache[host] = cert
 	return cert, nil
 }
 
@@ -157,56 +155,18 @@ func loadFromDisk(dataDir, keyPath, certPath string) (*CA, error) {
 	}
 
 	return &CA{
-		dataDir: dataDir,
-		key:     key,
-		cert:    cert,
-		raw:     certBlock.Bytes,
-		cache:   make(map[string]*tls.Certificate),
+		dataDir:  dataDir,
+		key:      key,
+		cert:     cert,
+		raw:      certBlock.Bytes,
+		cache:    make(map[string]*list.Element),
+		cacheLRU: list.New(),
 	}, nil
 }
 
 // issue creates and returns a new leaf TLS certificate signed by ca.
 func (ca *CA) issue(host string) (*tls.Certificate, error) {
 	return pkgca.IssueLeaf(ca.key, ca.cert, host, 2048, validity)
-}
-
-// loadLeafFromDisk tries to load a PEM-encoded key+cert pair from path.
-func loadLeafFromDisk(path string) (*tls.Certificate, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	cert, err := tls.X509KeyPair(data, data)
-	if err != nil {
-		return nil, err
-	}
-	return &cert, nil
-}
-
-// saveLeafToDisk writes key+cert PEM to path (creates dirs as needed).
-func saveLeafToDisk(path string, cert *tls.Certificate) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// Write private key.
-	if pk, ok := cert.PrivateKey.(*rsa.PrivateKey); ok {
-		if err := pem.Encode(f, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(pk)}); err != nil {
-			return err
-		}
-	}
-	// Write all certs in chain.
-	for _, c := range cert.Certificate {
-		if err := pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: c}); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func writePEM(path, pemType string, data []byte, mode os.FileMode) error {
@@ -218,15 +178,7 @@ func writePEM(path, pemType string, data []byte, mode os.FileMode) error {
 	return pem.Encode(f, &pem.Block{Type: pemType, Bytes: data})
 }
 
-// sanitizeHost makes a host string safe as a filename component.
-func sanitizeHost(host string) string {
-	out := make([]byte, len(host))
-	for i, c := range []byte(host) {
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' {
-			out[i] = c
-		} else {
-			out[i] = '_'
-		}
-	}
-	return string(out)
+type cacheEntry struct {
+	host string
+	cert *tls.Certificate
 }

@@ -61,7 +61,7 @@ jeltz
 #    e.g. curl --proxy http://127.0.0.1:8080 https://example.com/
 ```
 
-On first run jeltz generates a root CA (`ca.key.pem` + `ca.crt.pem`) in its data directory. All HTTPS leaf certificates are issued from this CA and cached on disk.
+On first run jeltz generates a root CA (`ca.key.pem` + `ca.crt.pem`) in its data directory. All HTTPS leaf certificates are issued from this CA and cached in-memory (LRU, max 1024 entries).
 
 ---
 
@@ -107,7 +107,7 @@ The CA certificate must be trusted by your OS or browser before HTTPS intercepti
 | `-listen` | `127.0.0.1:8080` | Proxy listen address |
 | `-config` | `~/.config/jeltz/config.yaml` (if it exists) | Path to config file |
 | `-base-path` | XDG config dir | Base path for resolving relative `path` values in rules |
-| `-data-dir` | XDG data dir (`~/.local/share/jeltz`) | Directory for CA key/cert and leaf cert cache |
+| `-data-dir` | XDG data dir (`~/.local/share/jeltz`) | Directory for CA key/cert and CA bundle files |
 | `-log-level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
 | `-insecure-upstream` | `false` | Skip TLS certificate verification for upstream connections |
 | `-dump-traffic` | `false` | Log request/response headers and body snippets at debug level |
@@ -343,7 +343,6 @@ jeltz -log-level debug -dump-traffic
 | `~/.local/share/jeltz/ca.crt.pem` | Root CA certificate (trust this) |
 | `~/.local/share/jeltz/ca.key.pem` | Root CA private key (keep private) |
 | `~/.local/share/jeltz/ca.p12` | Root CA PKCS#12 bundle, password `jeltz` (trust this) |
-| `~/.local/share/jeltz/certs/<host>.pem` | Cached leaf certificates |
 
 Locations follow the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/). Override with `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME`.
 

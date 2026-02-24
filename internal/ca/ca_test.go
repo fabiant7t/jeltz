@@ -2,9 +2,11 @@ package ca_test
 
 import (
 	"crypto/x509"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/fabiant7t/jeltz/internal/ca"
 )
@@ -41,9 +43,14 @@ func TestLoad_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second Load: %v", err)
 	}
-	cert1, _ := c1.LeafCert("reload.test")
-	// Clear memory cache between loads — c2 is a fresh load from disk.
-	cert2, _ := c2.LeafCert("reload.test")
+	cert1, err := c1.LeafCert("reload.test")
+	if err != nil {
+		t.Fatalf("first LeafCert: %v", err)
+	}
+	cert2, err := c2.LeafCert("reload.test")
+	if err != nil {
+		t.Fatalf("second LeafCert: %v", err)
+	}
 	// Both should produce valid certs for the same host.
 	if cert1 == nil || cert2 == nil {
 		t.Error("expected certs from both loads")
@@ -82,6 +89,33 @@ func TestLeafCert_ValidForHost(t *testing.T) {
 	}
 }
 
+func TestLeafCert_OneYearValidity(t *testing.T) {
+	dir := t.TempDir()
+	c, err := ca.Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	before := time.Now()
+	cert, err := c.LeafCert("validity.example")
+	if err != nil {
+		t.Fatalf("LeafCert: %v", err)
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		t.Fatalf("parse leaf: %v", err)
+	}
+
+	validity := leaf.NotAfter.Sub(leaf.NotBefore)
+	min := 364 * 24 * time.Hour
+	max := 366 * 24 * time.Hour
+	if validity < min || validity > max {
+		t.Fatalf("validity %v out of expected 1-year range [%v, %v]", validity, min, max)
+	}
+	if leaf.NotAfter.Before(before.Add(min)) {
+		t.Fatalf("NotAfter too soon: %v", leaf.NotAfter)
+	}
+}
+
 func TestLeafCert_Cached(t *testing.T) {
 	dir := t.TempDir()
 	c, err := ca.Load(dir)
@@ -103,36 +137,34 @@ func TestLeafCert_Cached(t *testing.T) {
 	}
 }
 
-func TestLeafCert_DiskCache(t *testing.T) {
+func TestLeafCert_LRUCapacityEvictsOldest(t *testing.T) {
 	dir := t.TempDir()
 	c, err := ca.Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 
-	host := "disktest.example"
-	_, err = c.LeafCert(host)
+	firstHost := "h0.example"
+	firstCert, err := c.LeafCert(firstHost)
 	if err != nil {
-		t.Fatalf("LeafCert: %v", err)
+		t.Fatalf("first host leaf cert: %v", err)
 	}
 
-	// Check disk file was created.
-	diskPath := filepath.Join(dir, "certs", "disktest_example.pem")
-	if _, err := os.Stat(diskPath); err != nil {
-		t.Errorf("disk cache not written: %v", err)
+	// Fill cache past capacity (1024).
+	for i := 1; i <= 1024; i++ {
+		host := fmt.Sprintf("h%d.example", i)
+		if _, err := c.LeafCert(host); err != nil {
+			t.Fatalf("LeafCert(%s): %v", host, err)
+		}
 	}
 
-	// Load fresh CA (clears memory cache), should load from disk.
-	c2, err := ca.Load(dir)
+	// First host should have been evicted; next request reissues.
+	firstCertAgain, err := c.LeafCert(firstHost)
 	if err != nil {
-		t.Fatalf("second Load: %v", err)
+		t.Fatalf("LeafCert again: %v", err)
 	}
-	cert2, err := c2.LeafCert(host)
-	if err != nil {
-		t.Fatalf("LeafCert from disk cache: %v", err)
-	}
-	if cert2 == nil {
-		t.Fatal("nil cert from disk cache")
+	if firstCertAgain == firstCert {
+		t.Fatal("expected first host cert to be reissued after LRU eviction")
 	}
 }
 
@@ -171,4 +203,3 @@ func TestLeafCert_VerifiableWithCA(t *testing.T) {
 		t.Errorf("leaf cert verification failed: %v", err)
 	}
 }
-
