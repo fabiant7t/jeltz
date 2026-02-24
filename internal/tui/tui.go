@@ -94,6 +94,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				m.searchMode = false
 				m.searchInput = ""
+				m.searchQuery = ""
+				m.filter = -1000
+				m.rebuildViewport(false)
 				return m, nil
 			case "enter":
 				m.searchMode = false
@@ -116,6 +119,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc", "v":
 				m.visMode = false
+				m.searchQuery = ""
+				m.filter = -1000
 				m.rebuildViewport(false)
 				return m, nil
 			case "j", "down":
@@ -153,6 +158,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cfg.Stop()
 			}
 			return m, tea.Quit
+		case "esc":
+			m.searchMode = false
+			m.searchInput = ""
+			m.searchQuery = ""
+			m.filter = -1000
+			m.rebuildViewport(false)
+			return m, nil
 		case "/":
 			m.searchMode = true
 			m.searchInput = ""
