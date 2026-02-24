@@ -10,6 +10,8 @@ const (
 	ansiBold   = "\033[1m"
 	ansiDim    = "\033[2m"
 	ansiCyan   = "\033[36m"
+	ansiRed    = "\033[31m"
+	ansiBlue   = "\033[34m"
 	ansiYellow = "\033[33m"
 )
 
@@ -48,6 +50,18 @@ func printBanner(listen, configFile, dataDir, caCertPath string, rules int, logL
 		}
 		return s
 	}
+	boldRed := func(s string) string {
+		if color {
+			return ansiBold + ansiRed + s + ansiReset
+		}
+		return s
+	}
+	boldBlue := func(s string) string {
+		if color {
+			return ansiBold + ansiBlue + s + ansiReset
+		}
+		return s
+	}
 	yellow := func(s string) string {
 		if color {
 			return ansiYellow + s + ansiReset
@@ -73,6 +87,9 @@ func printBanner(listen, configFile, dataDir, caCertPath string, rules int, logL
 		bold(listen),
 	)
 
+	// DON'T PANIC
+	fmt.Fprintf(w, "  %s\n", boldRed("DON'T PANIC"))
+
 	// Paths cluster.
 	fmt.Fprintln(w)
 	if configFile != "" {
@@ -85,6 +102,9 @@ func printBanner(listen, configFile, dataDir, caCertPath string, rules int, logL
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "%s%d\n", label("rules"), rules)
 	fmt.Fprintf(w, "%s%s\n", label("log"), logLevel)
+	if buildDate != "" {
+		fmt.Fprintf(w, "%s%s\n", label("built"), buildDate)
+	}
 
 	upstream := "verified"
 	if insecureUpstream {
@@ -97,6 +117,10 @@ func printBanner(listen, configFile, dataDir, caCertPath string, rules int, logL
 		dump = "on"
 	}
 	fmt.Fprintf(w, "%s%s\n", label("dump"), dump)
+
+	if rules == 42 {
+		fmt.Fprintf(w, "\n  %s\n", boldBlue("RESISTANCE IS USELESS"))
+	}
 
 	fmt.Fprintln(w)
 }
