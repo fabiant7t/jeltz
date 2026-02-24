@@ -29,7 +29,10 @@
   3. An invalid YAML config file (malformed YAML) causes the proxy to exit with a parse error, identical to pre-refactor behaviour
   4. A valid config file with header rules and `map_local` entries loads correctly and the proxy intercepts traffic according to those rules
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md — Replace double-read with single os.ReadFile + v.SetConfigType/v.ReadConfig in config.Load
 
 ---
 
