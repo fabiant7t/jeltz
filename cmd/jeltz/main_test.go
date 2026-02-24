@@ -1,0 +1,68 @@
+package main
+
+import (
+	"flag"
+	"testing"
+)
+
+func TestBoolFlagPtrIfSet(t *testing.T) {
+	t.Run("unset returns nil", func(t *testing.T) {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		v := fs.Bool("insecure-upstream", false, "")
+		if err := fs.Parse(nil); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if got := boolFlagPtrIfSet(fs, "insecure-upstream", *v); got != nil {
+			t.Fatalf("got %v, want nil", *got)
+		}
+	})
+
+	t.Run("set true returns pointer true", func(t *testing.T) {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		v := fs.Bool("insecure-upstream", false, "")
+		if err := fs.Parse([]string{"-insecure-upstream=true"}); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		got := boolFlagPtrIfSet(fs, "insecure-upstream", *v)
+		if got == nil || !*got {
+			t.Fatalf("got %v, want pointer to true", got)
+		}
+	})
+
+	t.Run("set false still returns pointer false", func(t *testing.T) {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		v := fs.Bool("dump-traffic", true, "")
+		if err := fs.Parse([]string{"-dump-traffic=false"}); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		got := boolFlagPtrIfSet(fs, "dump-traffic", *v)
+		if got == nil || *got {
+			t.Fatalf("got %v, want pointer to false", got)
+		}
+	})
+}
+
+func TestInt64FlagPtrIfSet(t *testing.T) {
+	t.Run("unset returns nil", func(t *testing.T) {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		v := fs.Int64("max-body-bytes", 1048576, "")
+		if err := fs.Parse(nil); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if got := int64FlagPtrIfSet(fs, "max-body-bytes", *v); got != nil {
+			t.Fatalf("got %v, want nil", *got)
+		}
+	})
+
+	t.Run("explicit zero returns pointer zero", func(t *testing.T) {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		v := fs.Int64("max-body-bytes", 1048576, "")
+		if err := fs.Parse([]string{"-max-body-bytes=0"}); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		got := int64FlagPtrIfSet(fs, "max-body-bytes", *v)
+		if got == nil || *got != 0 {
+			t.Fatalf("got %v, want pointer to 0", got)
+		}
+	})
+}

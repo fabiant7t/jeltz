@@ -26,8 +26,9 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 
 ### Active
 
-- [ ] `handleForward` (plain HTTP forward handler) has isolated unit tests covering the no-pipeline fallback and the pipeline-integrated path
-- [ ] `rawTunnel` (non-MITM CONNECT TCP fallback) has unit tests covering the bidirectional copy logic
+- [x] `handleForward` (plain HTTP forward handler) has isolated unit tests covering the no-pipeline fallback and the pipeline-integrated path
+- [x] `rawTunnel` (non-MITM CONNECT TCP fallback) has unit tests covering the bidirectional copy logic
+- [x] CLI boolean override semantics fixed: `-insecure-upstream` and `-dump-traffic` only override YAML when explicitly set
 
 ### Out of Scope
 
@@ -37,7 +38,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Per-host cert cache eviction — not requested
 - Windows build target — not requested
 
-## Current Milestone: v1.1 — Proxy Handler Tests
+## Current Milestone: v1.2 — CLI Override Semantics
+
+**Goal:** Ensure boolean CLI flags do not silently override YAML defaults unless explicitly passed.
+
+**Target features:**
+- `cmd/jeltz/main.go` only sets `CLIOverrides` bool pointers when corresponding flags were visited
+- Unit tests for explicit-vs-implicit flag override behavior in `cmd/jeltz/main_test.go`
+
+## Completed Milestone: v1.1 — Proxy Handler Tests
 
 **Goal:** Close the test coverage gap on the two untested proxy handlers in `internal/proxy/proxy.go`.
 
@@ -60,7 +69,8 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 |----------|-----------|---------|
 | Config triple-read fixed (v1.0) | Single `os.ReadFile`, shared `[]byte` | ✓ Good |
 | `config.Load` signature unchanged (v1.0) | Callers need no update | ✓ Good |
-| Test via `ServeHTTP` (v1.1) | `handleForward`/`rawTunnel` are unexported; test through public surface | — Pending |
+| Test via `ServeHTTP` (v1.1) | `handleForward`/`rawTunnel` are unexported; test through public surface | ✓ Complete |
+| Bool overrides only when explicitly set (v1.2) | Prevent CLI defaults from silently overriding YAML | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.1 started*
+*Last updated: 2026-02-24 after milestone v1.2 implementation*

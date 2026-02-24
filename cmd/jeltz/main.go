@@ -82,11 +82,9 @@ func main() {
 		BasePath:         *basePath,
 		DataDir:          *dataDir,
 		LogLevel:         *logLevel,
-		InsecureUpstream: insecureUpstream,
-		DumpTraffic:      dumpTraffic,
-	}
-	if *maxBodyBytes != 0 {
-		cli.MaxBodyBytes = maxBodyBytes
+		InsecureUpstream: boolFlagPtrIfSet(fs, "insecure-upstream", *insecureUpstream),
+		DumpTraffic:      boolFlagPtrIfSet(fs, "dump-traffic", *dumpTraffic),
+		MaxBodyBytes:     int64FlagPtrIfSet(fs, "max-body-bytes", *maxBodyBytes),
 	}
 
 	cfg, err := config.Load(*configFile, xdgCfg, xdgData, cli)
@@ -140,6 +138,32 @@ func main() {
 		)
 		os.Exit(1)
 	}
+}
+
+func boolFlagPtrIfSet(fs *flag.FlagSet, name string, value bool) *bool {
+	if !flagWasSet(fs, name) {
+		return nil
+	}
+	v := value
+	return &v
+}
+
+func int64FlagPtrIfSet(fs *flag.FlagSet, name string, value int64) *int64 {
+	if !flagWasSet(fs, name) {
+		return nil
+	}
+	v := value
+	return &v
+}
+
+func flagWasSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
 }
 
 func runCAPath() {
