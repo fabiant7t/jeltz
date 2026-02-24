@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -26,8 +27,9 @@ type FlowContext struct {
 	Method     string
 	Path       string
 	RawQuery   string
-	Header     http.Header   // mutable request headers
-	Body       io.ReadCloser // may be nil
+	Header     http.Header    // mutable request headers
+	Body       io.ReadCloser  // may be nil
+	Ctx        context.Context // per-request context for cancellation
 }
 
 // FlowMeta returns a rules.FlowMeta derived from this context.
@@ -59,11 +61,20 @@ type ResponseResult struct {
 type Pipeline struct {
 	ruleset          *rules.RuleSet
 	insecureUpstream bool
+	dumpTraffic      bool
+	maxBodyBytes     int64
 }
 
 // NewPipeline creates a Pipeline.
 func NewPipeline(rs *rules.RuleSet, insecureUpstream bool) *Pipeline {
 	return &Pipeline{ruleset: rs, insecureUpstream: insecureUpstream}
+}
+
+// WithDumpTraffic enables traffic dumping with the given body byte limit.
+func (p *Pipeline) WithDumpTraffic(maxBodyBytes int64) *Pipeline {
+	p.dumpTraffic = true
+	p.maxBodyBytes = maxBodyBytes
+	return p
 }
 
 // Run processes fc and returns a ResponseResult.
@@ -174,11 +185,16 @@ func (p *Pipeline) roundtrip(fc *FlowContext) (*ResponseResult, error) {
 		targetURL += "?" + fc.RawQuery
 	}
 
+	ctx := fc.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var body io.Reader
 	if fc.Body != nil {
 		body = fc.Body
 	}
-	outReq, err := http.NewRequest(fc.Method, targetURL, body)
+	outReq, err := http.NewRequestWithContext(ctx, fc.Method, targetURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("building upstream request: %w", err)
 	}
@@ -207,6 +223,29 @@ func (p *Pipeline) roundtrip(fc *FlowContext) (*ResponseResult, error) {
 		Body:    resp.Body,
 		Source:  "upstream",
 	}, nil
+}
+
+// dumpHeaders logs request/response headers, redacting sensitive values.
+func dumpHeaders(logger *slog.Logger, direction string, h http.Header) {
+	redact := map[string]struct{}{
+		"Authorization": {},
+		"Cookie":        {},
+		"Set-Cookie":    {},
+	}
+	attrs := []any{
+		slog.String(logging.KeyComponent, "dump"),
+		slog.String("direction", direction),
+	}
+	for k, vals := range h {
+		if _, sensitive := redact[k]; sensitive {
+			attrs = append(attrs, slog.String(k, "[REDACTED]"))
+			continue
+		}
+		for _, v := range vals {
+			attrs = append(attrs, slog.String(k, v))
+		}
+	}
+	logger.Debug("traffic_headers", attrs...)
 }
 
 // WriteResponse writes result to w and logs the completed flow.

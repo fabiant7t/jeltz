@@ -150,6 +150,7 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 			RawQuery:   r.URL.RawQuery,
 			Header:     r.Header.Clone(),
 			Body:       r.Body,
+			Ctx:        r.Context(),
 		}
 		result, err := s.pipeline.Run(fc)
 		if err != nil {

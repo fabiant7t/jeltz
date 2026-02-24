@@ -127,6 +127,9 @@ func main() {
 	}
 
 	pipeline := proxy.NewPipeline(rs, cfg.InsecureUpstream)
+	if cfg.DumpTraffic {
+		pipeline = pipeline.WithDumpTraffic(cfg.MaxBodyBytes)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

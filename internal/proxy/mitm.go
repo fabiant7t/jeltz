@@ -92,6 +92,7 @@ func (s *Server) serveH2(tlsConn *tls.Conn, targetHost, targetPort, clientAddr s
 			RawQuery:   r.URL.RawQuery,
 			Header:     r.Header.Clone(),
 			Body:       r.Body,
+			Ctx:        r.Context(), // propagates per-stream cancellation
 		}
 
 		result, err := s.pipeline.Run(fc)
