@@ -83,10 +83,28 @@ type p12DigestInfo struct {
 	Digest    []byte
 }
 
+// P12Password is the fixed password used for all jeltz PKCS#12 bundles.
+const P12Password = "jeltz"
+
+// p12PasswordBytes converts P12Password to the BMPString (UTF-16BE + null
+// terminator) representation required by the PKCS#12 KDF (RFC 7292).
+func p12PasswordBytes() []byte {
+	s := P12Password
+	b := make([]byte, len(s)*2+2)
+	for i, c := range s {
+		b[i*2] = byte(c >> 8)
+		b[i*2+1] = byte(c)
+	}
+	// null terminator
+	b[len(s)*2] = 0
+	b[len(s)*2+1] = 0
+	return b
+}
+
 // ---- Entry point --------------------------------------------------------
 
-// writeP12 encodes key and cert as a PKCS#12 PFX bundle (empty password) and
-// writes it to path with mode 0600. Only stdlib crypto is used.
+// writeP12 encodes key and cert as a PKCS#12 PFX bundle (password: P12Password)
+// and writes it to path with mode 0600. Only stdlib crypto is used.
 func writeP12(path string, key *rsa.PrivateKey, cert *x509.Certificate) error {
 	data, err := encodePKCS12(key, cert)
 	if err != nil {
@@ -99,8 +117,7 @@ func writeP12(path string, key *rsa.PrivateKey, cert *x509.Certificate) error {
 
 // encodePKCS12 produces a DER-encoded PKCS#12 PFX bundle.
 func encodePKCS12(key *rsa.PrivateKey, cert *x509.Certificate) ([]byte, error) {
-	// Empty password as null-terminated UTF-16BE (BMPString of "").
-	password := []byte{0, 0}
+	password := p12PasswordBytes()
 
 	// LocalKeyID = SHA-1 of the certificate DER, used to link cert and key.
 	keyID := sha1.Sum(cert.Raw)

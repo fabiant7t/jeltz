@@ -83,7 +83,7 @@ On first run jeltz writes three files to its data directory:
 |---|---|
 | `ca.crt.pem` | PEM certificate — use with `security`, `certutil`, `update-ca-certificates` |
 | `ca.key.pem` | Private key — keep private |
-| `ca.p12` | PKCS#12 bundle (empty password) — use on Windows (`certutil` / double-click import) |
+| `ca.p12` | PKCS#12 bundle (password: `jeltz`) — use on Windows or Firefox import |
 
 The CA certificate must be trusted by your OS or browser before HTTPS interception works without certificate errors.
 
@@ -312,7 +312,7 @@ jeltz -log-level debug -dump-traffic
 | `~/.config/jeltz/config.yaml` | Default config file location |
 | `~/.local/share/jeltz/ca.crt.pem` | Root CA certificate (trust this) |
 | `~/.local/share/jeltz/ca.key.pem` | Root CA private key (keep private) |
-| `~/.local/share/jeltz/ca.p12` | Root CA PKCS#12 bundle, empty password (trust this) |
+| `~/.local/share/jeltz/ca.p12` | Root CA PKCS#12 bundle, password `jeltz` (trust this) |
 | `~/.local/share/jeltz/certs/<host>.pem` | Cached leaf certificates |
 
 Locations follow the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/). Override with `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME`.
