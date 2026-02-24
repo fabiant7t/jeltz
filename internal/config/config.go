@@ -116,14 +116,14 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 		if _, err := os.Stat(configFile); err != nil {
 			return nil, fmt.Errorf("config file %q not found: %w", configFile, err)
 		}
-		v.SetConfigFile(configFile)
-		if err := v.ReadInConfig(); err != nil {
-			return nil, fmt.Errorf("reading config file: %w", err)
-		}
 		var readErr error
 		rawYAML, readErr = os.ReadFile(configFile)
 		if readErr != nil {
-			return nil, fmt.Errorf("re-reading config file for validation: %w", readErr)
+			return nil, fmt.Errorf("reading config file: %w", readErr)
+		}
+		v.SetConfigType("yaml")
+		if err := v.ReadConfig(bytes.NewReader(rawYAML)); err != nil {
+			return nil, fmt.Errorf("reading config file: %w", err)
 		}
 	}
 
