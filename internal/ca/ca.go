@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -184,11 +185,16 @@ func (ca *CA) issue(host string) (*tls.Certificate, error) {
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject:      pkix.Name{CommonName: host},
-		DNSNames:     []string{host},
 		NotBefore:    now.Add(-time.Minute),
 		NotAfter:     now.Add(validity),
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	// Use IPAddresses SAN for IP addresses, DNSNames for hostnames.
+	if ip := net.ParseIP(host); ip != nil {
+		tmpl.IPAddresses = []net.IP{ip}
+	} else {
+		tmpl.DNSNames = []string{host}
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, ca.cert, &key.PublicKey, ca.key)
