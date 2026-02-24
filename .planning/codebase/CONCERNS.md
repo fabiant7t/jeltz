@@ -71,12 +71,6 @@
 
 ## Test Coverage Gaps
 
-**No tests for logging package behavior:**
-- What's not tested: log-level parsing and handler configuration in `internal/logging/logging.go`.
-- Files: `internal/logging/logging.go`
-- Risk: low; malformed level handling regressions could surface at startup.
-- Priority: Low
-
 **No direct tests for hop-by-hop header utility package alone:**
 - What's not tested: standalone unit coverage for `RemoveHopByHop` in isolation.
 - Files: `internal/httpx/hopbyhop.go`
