@@ -88,6 +88,7 @@ func printBanner(listen, configFile, dataDir, caCertPath string, rules int, logL
 	)
 
 	// DON'T PANIC
+	fmt.Fprintln(w)
 	fmt.Fprintf(w, "  %s\n", boldRed("DON'T PANIC"))
 
 	// Paths cluster.
