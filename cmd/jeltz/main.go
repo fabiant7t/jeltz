@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,18 +28,14 @@ var (
 )
 
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "ca-path":
-			runCAPath()
-			return
-		case "ca-p12-path":
-			runCAP12Path()
-			return
-		case "ca-install-hint":
-			runCAInstallHint()
-			return
-		}
+	subcommand, hasSubcommand, err := parseSubcommand(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "jeltz: %v\n", err)
+		os.Exit(1)
+	}
+	if hasSubcommand {
+		runSubcommand(subcommand)
+		return
 	}
 
 	fs := flag.NewFlagSet("jeltz", flag.ExitOnError)
@@ -155,6 +152,36 @@ func main() {
 			slog.String(logging.KeyComponent, "main"),
 			slog.String(logging.KeyError, err.Error()),
 		)
+		os.Exit(1)
+	}
+}
+
+func parseSubcommand(args []string) (string, bool, error) {
+	if len(args) == 0 {
+		return "", false, nil
+	}
+	first := args[0]
+	if strings.HasPrefix(first, "-") {
+		return "", false, nil
+	}
+	switch first {
+	case "ca-path", "ca-p12-path", "ca-install-hint":
+		return first, true, nil
+	default:
+		return "", false, fmt.Errorf("unknown subcommand %q", first)
+	}
+}
+
+func runSubcommand(name string) {
+	switch name {
+	case "ca-path":
+		runCAPath()
+	case "ca-p12-path":
+		runCAP12Path()
+	case "ca-install-hint":
+		runCAInstallHint()
+	default:
+		fmt.Fprintf(os.Stderr, "jeltz: unknown subcommand %q\n", name)
 		os.Exit(1)
 	}
 }

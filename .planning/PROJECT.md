@@ -89,6 +89,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Keep content-type behavior and status/header rule behavior unchanged
 - Add regression test for large local file response without full-memory buffering semantics
 
+## Completed Milestone: v1.6 — Subcommand Dispatch Hardening
+
+**Goal:** Make CLI subcommand handling explicit and error-safe instead of falling through to proxy startup on typos.
+
+**Target features:**
+- Replace manual `os.Args[1]` dispatch with explicit subcommand parsing/validation
+- Unknown subcommands return a clear error and non-zero exit
+- Add tests for subcommand parsing behavior
+
 ## Context
 
 Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
@@ -109,6 +118,7 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 | Upstream transport timeouts configurable (v1.3) | Prevent indefinite blocking on stalled upstream | ✓ Complete |
 | Dump-body path streams while logging snippet (v1.4) | Prevent client-visible truncation under `-dump-traffic` | ✓ Complete |
 | map_local responses stream from file handles (v1.5) | Avoid full-file buffering for local response bodies | ✓ Complete |
+| Explicit subcommand parsing (v1.6) | Unknown subcommands fail fast instead of proxy startup fallback | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.5 implementation*
+*Last updated: 2026-02-24 after milestone v1.6 implementation*

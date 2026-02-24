@@ -29,11 +29,6 @@
 - Impact: Subtle staleness bugs if the file changes mid-startup; maintenance overhead.
 - Mitigation path: Read the file once into memory; feed that single byte slice to both viper and yaml.v3.
 
-**Subcommand dispatch via manual `os.Args` slice check:**
-- `cmd/jeltz/main.go` lines 29–41: Subcommands (`ca-path`, `ca-p12-path`, `ca-install-hint`) are handled by a bare `switch os.Args[1]` check before the `flag.FlagSet` is even created. Any unknown argument falls through to the main proxy flow and is silently ignored by `flag.ExitOnError`.
-- Impact: Typos in subcommand names silently start the proxy instead of returning an error; `--help` on a subcommand is not handled.
-- Mitigation path: Use a proper command dispatcher (e.g., `flag.NewFlagSet` per subcommand, or a lightweight CLI library).
-
 **`rawTunnel` (plain TCP fallback in `internal/proxy/proxy.go`) only waits for one goroutine to finish:**
 - Lines 125–137: `done` channel has capacity 2, but `<-done` is called twice after launching two goroutines. This is correct, but the pattern is unusual and any reader must verify the channel capacity matches the goroutine count. A future refactor changing the capacity would silently break cleanup.
 - Impact: Low risk now, but fragile under maintenance.

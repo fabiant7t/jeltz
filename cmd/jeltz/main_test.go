@@ -5,6 +5,48 @@ import (
 	"testing"
 )
 
+func TestParseSubcommand(t *testing.T) {
+	t.Run("no args", func(t *testing.T) {
+		name, ok, err := parseSubcommand(nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ok || name != "" {
+			t.Fatalf("got name=%q ok=%v, want empty/false", name, ok)
+		}
+	})
+
+	t.Run("flag arg is not subcommand", func(t *testing.T) {
+		name, ok, err := parseSubcommand([]string{"-log-level", "debug"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ok || name != "" {
+			t.Fatalf("got name=%q ok=%v, want empty/false", name, ok)
+		}
+	})
+
+	t.Run("known subcommand", func(t *testing.T) {
+		name, ok, err := parseSubcommand([]string{"ca-path"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !ok || name != "ca-path" {
+			t.Fatalf("got name=%q ok=%v, want ca-path/true", name, ok)
+		}
+	})
+
+	t.Run("unknown subcommand returns error", func(t *testing.T) {
+		name, ok, err := parseSubcommand([]string{"nope"})
+		if err == nil {
+			t.Fatal("expected error for unknown subcommand")
+		}
+		if ok || name != "" {
+			t.Fatalf("got name=%q ok=%v, want empty/false", name, ok)
+		}
+	})
+}
+
 func TestBoolFlagPtrIfSet(t *testing.T) {
 	t.Run("unset returns nil", func(t *testing.T) {
 		fs := flag.NewFlagSet("test", flag.ContinueOnError)

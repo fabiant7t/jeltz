@@ -83,6 +83,8 @@ jeltz ca-p12-path
 jeltz ca-install-hint
 ```
 
+Unknown subcommands now fail fast with a clear error (they do not fall through and start the proxy).
+
 On first run jeltz writes three files to its data directory:
 
 | File | Use |
