@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/fabiant7t/jeltz/internal/config"
 	"github.com/fabiant7t/jeltz/internal/logging"
+	"github.com/fabiant7t/jeltz/internal/proxy"
 	"github.com/fabiant7t/jeltz/internal/xdg"
 )
 
@@ -61,17 +65,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build CLI overrides — only set fields that were explicitly provided.
 	cli := config.CLIOverrides{
-		Listen:   *listen,
-		BasePath: *basePath,
-		DataDir:  *dataDir,
-		LogLevel: *logLevel,
+		Listen:           *listen,
+		BasePath:         *basePath,
+		DataDir:          *dataDir,
+		LogLevel:         *logLevel,
+		InsecureUpstream: insecureUpstream,
+		DumpTraffic:      dumpTraffic,
 	}
-	// Flags with bool/int64 zero values are always "set" so we pass them if
-	// non-default. For simplicity, always forward them as overrides.
-	cli.InsecureUpstream = insecureUpstream
-	cli.DumpTraffic = dumpTraffic
 	if *maxBodyBytes != 0 {
 		cli.MaxBodyBytes = maxBodyBytes
 	}
@@ -100,8 +101,17 @@ func main() {
 		slog.Int("rules", len(cfg.Rules)),
 	)
 
-	// Placeholder: proxy server will be started here in L2+.
-	logger.Info("no proxy configured yet; exiting", slog.String(logging.KeyComponent, "main"))
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	srv := proxy.New(cfg.Listen, logger)
+	if err := srv.ListenAndServe(ctx); err != nil {
+		logger.Error("server error",
+			slog.String(logging.KeyComponent, "main"),
+			slog.String(logging.KeyError, err.Error()),
+		)
+		os.Exit(1)
+	}
 }
 
 func runCAPath() {
