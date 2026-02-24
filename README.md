@@ -110,6 +110,7 @@ The CA certificate must be trusted by your OS or browser before HTTPS intercepti
 | `-insecure-upstream` | `false` | Skip TLS certificate verification for upstream connections |
 | `-dump-traffic` | `false` | Log request/response headers and body snippets at debug level |
 | `-max-body-bytes` | `1048576` | Max body bytes to log when `-dump-traffic` is enabled |
+| `-max-upstream-request-body-bytes` | `0` | Max upstream request body bytes (`0` = unlimited), over-limit returns `413` |
 | `-upstream-dial-timeout-ms` | `10000` | Upstream TCP dial timeout in milliseconds |
 | `-upstream-tls-handshake-timeout-ms` | `10000` | Upstream TLS handshake timeout in milliseconds |
 | `-upstream-response-header-timeout-ms` | `30000` | Upstream response header timeout in milliseconds |
@@ -131,6 +132,7 @@ data_dir: ""                 # CA/cert storage; empty = XDG data dir
 insecure_upstream: false     # skip TLS verification upstream
 dump_traffic: false          # log headers + body snippets
 max_body_bytes: 1048576      # body dump limit in bytes
+max_upstream_request_body_bytes: 0          # max upstream request body bytes (0 = unlimited)
 upstream_dial_timeout_ms: 10000              # upstream TCP dial timeout
 upstream_tls_handshake_timeout_ms: 10000     # upstream TLS handshake timeout
 upstream_response_header_timeout_ms: 30000   # upstream response header timeout
@@ -249,6 +251,7 @@ upstream_dial_timeout_ms: 10000
 upstream_tls_handshake_timeout_ms: 10000
 upstream_response_header_timeout_ms: 30000
 upstream_idle_conn_timeout_ms: 60000
+max_upstream_request_body_bytes: 0
 
 rules:
   # Strip GDPR consent cookies from every request

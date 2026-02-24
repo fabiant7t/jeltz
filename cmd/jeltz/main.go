@@ -64,6 +64,7 @@ func main() {
 	insecureUpstream := fs.Bool("insecure-upstream", false, "Skip TLS verification for upstream connections")
 	dumpTraffic := fs.Bool("dump-traffic", false, "Log request/response headers and body snippets")
 	maxBodyBytes := fs.Int64("max-body-bytes", 0, "Max body bytes to log when dump-traffic is enabled (default 1048576)")
+	maxUpstreamRequestBodyBytes := fs.Int64("max-upstream-request-body-bytes", 0, "Max upstream request body bytes (0 = unlimited)")
 	upstreamDialTimeoutMS := fs.Int64("upstream-dial-timeout-ms", 0, "Upstream TCP dial timeout in milliseconds (default 10000)")
 	upstreamTLSHandshakeTimeoutMS := fs.Int64("upstream-tls-handshake-timeout-ms", 0, "Upstream TLS handshake timeout in milliseconds (default 10000)")
 	upstreamResponseHeaderTimeoutMS := fs.Int64("upstream-response-header-timeout-ms", 0, "Upstream response header timeout in milliseconds (default 30000)")
@@ -87,6 +88,8 @@ func main() {
 		InsecureUpstream: boolFlagPtrIfSet(fs, "insecure-upstream", *insecureUpstream),
 		DumpTraffic:      boolFlagPtrIfSet(fs, "dump-traffic", *dumpTraffic),
 		MaxBodyBytes:     int64FlagPtrIfSet(fs, "max-body-bytes", *maxBodyBytes),
+		MaxUpstreamRequestBodyBytes: int64FlagPtrIfSet(fs,
+			"max-upstream-request-body-bytes", *maxUpstreamRequestBodyBytes),
 		UpstreamDialTimeoutMS: int64FlagPtrIfSet(fs,
 			"upstream-dial-timeout-ms", *upstreamDialTimeoutMS),
 		UpstreamTLSHandshakeTimeoutMS: int64FlagPtrIfSet(fs,
@@ -133,6 +136,7 @@ func main() {
 		len(cfg.Rules), *logLevel, cfg.InsecureUpstream, cfg.DumpTraffic)
 
 	pipeline := proxy.NewPipeline(rs, cfg.InsecureUpstream)
+	pipeline = pipeline.WithMaxUpstreamRequestBodyBytes(cfg.MaxUpstreamRequestBodyBytes)
 	pipeline = pipeline.WithTransportTimeouts(proxy.TransportTimeouts{
 		DialTimeout:           time.Duration(cfg.UpstreamDialTimeoutMS) * time.Millisecond,
 		TLSHandshakeTimeout:   time.Duration(cfg.UpstreamTLSHandshakeTimeoutMS) * time.Millisecond,

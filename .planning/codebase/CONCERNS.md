@@ -37,10 +37,6 @@
 - `pkg/xdg/xdg.go` contains XDG path resolution logic. Tests exist but run on the current platform only; behavior on macOS or Windows is untested.
 - Risk: Wrong data directories on macOS/Windows users.
 
-**No request body size limit for upstream forwarding:**
-- `internal/proxy/pipeline.go`: Request bodies are forwarded as-is to upstream with no size cap. An attacker sending a very large POST body through the proxy could exhaust memory or disk if the upstream is slow.
-- Impact: Low risk for a localhost developer tool, but worth noting for shared-network use.
-
 ---
 
 ## Risks

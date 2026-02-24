@@ -24,6 +24,7 @@ type Config struct {
 	InsecureUpstream                bool
 	DumpTraffic                     bool
 	MaxBodyBytes                    int64
+	MaxUpstreamRequestBodyBytes     int64
 	UpstreamDialTimeoutMS           int64
 	UpstreamTLSHandshakeTimeoutMS   int64
 	UpstreamResponseHeaderTimeoutMS int64
@@ -79,6 +80,7 @@ type yamlConfig struct {
 	InsecureUpstream                bool      `yaml:"insecure_upstream"`
 	DumpTraffic                     bool      `yaml:"dump_traffic"`
 	MaxBodyBytes                    int64     `yaml:"max_body_bytes"`
+	MaxUpstreamRequestBodyBytes     int64     `yaml:"max_upstream_request_body_bytes"`
 	UpstreamDialTimeoutMS           int64     `yaml:"upstream_dial_timeout_ms"`
 	UpstreamTLSHandshakeTimeoutMS   int64     `yaml:"upstream_tls_handshake_timeout_ms"`
 	UpstreamResponseHeaderTimeoutMS int64     `yaml:"upstream_response_header_timeout_ms"`
@@ -96,6 +98,7 @@ type CLIOverrides struct {
 	InsecureUpstream                *bool
 	DumpTraffic                     *bool
 	MaxBodyBytes                    *int64
+	MaxUpstreamRequestBodyBytes     *int64
 	UpstreamDialTimeoutMS           *int64
 	UpstreamTLSHandshakeTimeoutMS   *int64
 	UpstreamResponseHeaderTimeoutMS *int64
@@ -115,6 +118,7 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 	v.SetDefault("insecure_upstream", false)
 	v.SetDefault("dump_traffic", false)
 	v.SetDefault("max_body_bytes", int64(1048576))
+	v.SetDefault("max_upstream_request_body_bytes", int64(0))
 	v.SetDefault("upstream_dial_timeout_ms", int64(10000))
 	v.SetDefault("upstream_tls_handshake_timeout_ms", int64(10000))
 	v.SetDefault("upstream_response_header_timeout_ms", int64(30000))
@@ -165,6 +169,7 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 		InsecureUpstream:                v.GetBool("insecure_upstream"),
 		DumpTraffic:                     v.GetBool("dump_traffic"),
 		MaxBodyBytes:                    v.GetInt64("max_body_bytes"),
+		MaxUpstreamRequestBodyBytes:     v.GetInt64("max_upstream_request_body_bytes"),
 		UpstreamDialTimeoutMS:           v.GetInt64("upstream_dial_timeout_ms"),
 		UpstreamTLSHandshakeTimeoutMS:   v.GetInt64("upstream_tls_handshake_timeout_ms"),
 		UpstreamResponseHeaderTimeoutMS: v.GetInt64("upstream_response_header_timeout_ms"),
@@ -196,6 +201,9 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 	if cli.MaxBodyBytes != nil {
 		cfg.MaxBodyBytes = *cli.MaxBodyBytes
 	}
+	if cli.MaxUpstreamRequestBodyBytes != nil {
+		cfg.MaxUpstreamRequestBodyBytes = *cli.MaxUpstreamRequestBodyBytes
+	}
 	if cli.UpstreamDialTimeoutMS != nil {
 		cfg.UpstreamDialTimeoutMS = *cli.UpstreamDialTimeoutMS
 	}
@@ -209,11 +217,12 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 		cfg.UpstreamIdleConnTimeoutMS = *cli.UpstreamIdleConnTimeoutMS
 	}
 
-	if cfg.UpstreamDialTimeoutMS < 0 ||
+	if cfg.MaxUpstreamRequestBodyBytes < 0 ||
+		cfg.UpstreamDialTimeoutMS < 0 ||
 		cfg.UpstreamTLSHandshakeTimeoutMS < 0 ||
 		cfg.UpstreamResponseHeaderTimeoutMS < 0 ||
 		cfg.UpstreamIdleConnTimeoutMS < 0 {
-		return nil, fmt.Errorf("upstream timeout values must be >= 0")
+		return nil, fmt.Errorf("request/timeout values must be >= 0")
 	}
 
 	// Resolve base_path.

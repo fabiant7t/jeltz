@@ -8,16 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Milestone v1.10 — remaining runtime reliability gaps (request body limits, CA/cache risk items).
+**Current focus:** Milestone v1.11 — remaining runtime reliability gaps (CA/cache risk items, platform coverage).
 
 ---
 
 ## Current Position
 
 **Phase:** Milestone transition
-**Plan:** v1.10 reliability follow-ups
-**Status:** v1.9 complete; next milestone defined
-**Last activity:** 2026-02-24 — Added compile-time map_local path validation + tests
+**Plan:** v1.11 reliability follow-ups
+**Status:** v1.10 complete; next milestone defined
+**Last activity:** 2026-02-24 — Added configurable upstream request body limit + 413 enforcement tests
 
 ---
 
@@ -38,6 +38,7 @@
 | CLI output and banner flows covered by tests | Guard user-facing output contracts against regressions |
 | rawTunnel synchronization uses WaitGroup | Improve maintainability without changing tunnel behavior |
 | map_local paths validated at compile-time | Convert runtime misconfig 500s into startup-time compile errors |
+| Upstream request body limits configurable | Optional safeguard against oversized forwarded payloads |
 
 ### Active Constraints
 
@@ -64,8 +65,10 @@ None.
 - [x] Execute Phase 7
 - [x] Plan Phase 8
 - [x] Execute Phase 8
-- [ ] Plan Phase 9
-- [ ] Execute Phase 9
+- [x] Plan Phase 9
+- [x] Execute Phase 9
+- [ ] Plan Phase 10
+- [ ] Execute Phase 10
 
 ---
 

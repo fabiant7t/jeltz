@@ -60,10 +60,11 @@ type ResponseResult struct {
 
 // Pipeline executes the full request/response processing chain.
 type Pipeline struct {
-	ruleset      *rules.RuleSet
-	transport    *http.Transport // shared; created once
-	dumpTraffic  bool
-	maxBodyBytes int64
+	ruleset                     *rules.RuleSet
+	transport                   *http.Transport // shared; created once
+	dumpTraffic                 bool
+	maxBodyBytes                int64
+	maxUpstreamRequestBodyBytes int64
 }
 
 // TransportTimeouts configures upstream transport timeouts.
@@ -108,6 +109,13 @@ func NewPipeline(rs *rules.RuleSet, insecureUpstream bool) *Pipeline {
 func (p *Pipeline) WithDumpTraffic(maxBodyBytes int64) *Pipeline {
 	p.dumpTraffic = true
 	p.maxBodyBytes = maxBodyBytes
+	return p
+}
+
+// WithMaxUpstreamRequestBodyBytes sets the maximum allowed upstream request
+// body size in bytes. Zero or negative means unlimited.
+func (p *Pipeline) WithMaxUpstreamRequestBodyBytes(maxBytes int64) *Pipeline {
+	p.maxUpstreamRequestBodyBytes = maxBytes
 	return p
 }
 
@@ -261,7 +269,18 @@ func (p *Pipeline) roundtrip(fc *FlowContext) (*ResponseResult, error) {
 
 	var body io.Reader
 	if fc.Body != nil {
-		body = fc.Body
+		if p.maxUpstreamRequestBodyBytes > 0 {
+			data, tooLarge, readErr := readRequestBody(fc.Body, p.maxUpstreamRequestBodyBytes)
+			if readErr != nil {
+				return nil, fmt.Errorf("reading request body: %w", readErr)
+			}
+			if tooLarge {
+				return emptyResult(http.StatusRequestEntityTooLarge, "local"), nil
+			}
+			body = bytes.NewReader(data)
+		} else {
+			body = fc.Body
+		}
 	}
 	outReq, err := http.NewRequestWithContext(ctx, fc.Method, targetURL, body)
 	if err != nil {
@@ -286,6 +305,18 @@ func (p *Pipeline) roundtrip(fc *FlowContext) (*ResponseResult, error) {
 		Body:    resp.Body,
 		Source:  "upstream",
 	}, nil
+}
+
+func readRequestBody(body io.ReadCloser, maxBytes int64) ([]byte, bool, error) {
+	defer body.Close() //nolint:errcheck
+	data, err := io.ReadAll(io.LimitReader(body, maxBytes+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, true, nil
+	}
+	return data, false, nil
 }
 
 // dumpHeaders logs request/response headers at debug level, redacting sensitive values.

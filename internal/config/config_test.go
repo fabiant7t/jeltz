@@ -35,6 +35,9 @@ func TestLoad_NoFile(t *testing.T) {
 	if cfg.UpstreamDialTimeoutMS != 10000 {
 		t.Errorf("default upstream_dial_timeout_ms: got %d", cfg.UpstreamDialTimeoutMS)
 	}
+	if cfg.MaxUpstreamRequestBodyBytes != 0 {
+		t.Errorf("default max_upstream_request_body_bytes: got %d", cfg.MaxUpstreamRequestBodyBytes)
+	}
 	if cfg.UpstreamTLSHandshakeTimeoutMS != 10000 {
 		t.Errorf("default upstream_tls_handshake_timeout_ms: got %d", cfg.UpstreamTLSHandshakeTimeoutMS)
 	}
@@ -54,6 +57,7 @@ listen: "127.0.0.1:9999"
 insecure_upstream: true
 dump_traffic: false
 max_body_bytes: 512
+max_upstream_request_body_bytes: 4096
 upstream_dial_timeout_ms: 1234
 upstream_tls_handshake_timeout_ms: 2345
 upstream_response_header_timeout_ms: 3456
@@ -71,6 +75,9 @@ upstream_idle_conn_timeout_ms: 4567
 	}
 	if cfg.MaxBodyBytes != 512 {
 		t.Errorf("max_body_bytes: got %d", cfg.MaxBodyBytes)
+	}
+	if cfg.MaxUpstreamRequestBodyBytes != 4096 {
+		t.Errorf("max_upstream_request_body_bytes: got %d", cfg.MaxUpstreamRequestBodyBytes)
 	}
 	if cfg.UpstreamDialTimeoutMS != 1234 {
 		t.Errorf("upstream_dial_timeout_ms: got %d", cfg.UpstreamDialTimeoutMS)
@@ -117,10 +124,12 @@ listen: "127.0.0.1:9000"
 `)
 	insecure := true
 	dial := int64(250)
+	maxReq := int64(123)
 	cfg, err := config.Load(p, tmp, tmp, config.CLIOverrides{
-		Listen:                "127.0.0.1:7777",
-		InsecureUpstream:      &insecure,
-		UpstreamDialTimeoutMS: &dial,
+		Listen:                      "127.0.0.1:7777",
+		InsecureUpstream:            &insecure,
+		MaxUpstreamRequestBodyBytes: &maxReq,
+		UpstreamDialTimeoutMS:       &dial,
 	})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -134,6 +143,9 @@ listen: "127.0.0.1:9000"
 	if cfg.UpstreamDialTimeoutMS != 250 {
 		t.Errorf("CLI upstream_dial_timeout_ms override: got %d", cfg.UpstreamDialTimeoutMS)
 	}
+	if cfg.MaxUpstreamRequestBodyBytes != 123 {
+		t.Errorf("CLI max_upstream_request_body_bytes override: got %d", cfg.MaxUpstreamRequestBodyBytes)
+	}
 }
 
 func TestLoad_RejectsNegativeTimeout(t *testing.T) {
@@ -145,6 +157,18 @@ upstream_dial_timeout_ms: -1
 	_, err := config.Load(p, tmp, tmp, config.CLIOverrides{})
 	if err == nil {
 		t.Fatal("expected error for negative timeout")
+	}
+}
+
+func TestLoad_RejectsNegativeMaxUpstreamRequestBodyBytes(t *testing.T) {
+	tmp := t.TempDir()
+	p := writeConfig(t, tmp, `
+version: 1
+max_upstream_request_body_bytes: -1
+`)
+	_, err := config.Load(p, tmp, tmp, config.CLIOverrides{})
+	if err == nil {
+		t.Fatal("expected error for negative max_upstream_request_body_bytes")
 	}
 }
 

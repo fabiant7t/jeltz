@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -286,6 +287,70 @@ func TestPipeline_DumpTraffic_DoesNotTruncateBody(t *testing.T) {
 	}
 	if !bytes.Equal(got, payload) {
 		t.Fatalf("body mismatch: got %d bytes, want %d", len(got), len(payload))
+	}
+}
+
+func TestPipeline_UpstreamRequestBodyLimit_WithinLimit(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(b)
+	}))
+	defer upstream.Close()
+
+	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	p := proxy.NewPipeline(nil, false).WithMaxUpstreamRequestBodyBytes(8)
+	result, runErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "POST", Path: "/", Header: make(http.Header),
+		Body: io.NopCloser(bytes.NewReader([]byte("12345678"))),
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	if result.Status != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", result.Status, http.StatusOK)
+	}
+	got, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if string(got) != "12345678" {
+		t.Fatalf("body: got %q", string(got))
+	}
+}
+
+func TestPipeline_UpstreamRequestBodyLimit_ExceededReturns413(t *testing.T) {
+	var hit int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hit, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	p := proxy.NewPipeline(nil, false).WithMaxUpstreamRequestBodyBytes(8)
+	result, runErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "POST", Path: "/", Header: make(http.Header),
+		Body: io.NopCloser(bytes.NewReader([]byte("123456789"))),
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	if result.Status != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status: got %d, want %d", result.Status, http.StatusRequestEntityTooLarge)
+	}
+	if atomic.LoadInt32(&hit) != 0 {
+		t.Fatalf("upstream should not be called, hit=%d", hit)
 	}
 }
 

@@ -125,6 +125,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Return compile errors that include rule index and configured path
 - Add tests covering missing-path compile failures
 
+## Completed Milestone: v1.10 — Upstream Request Body Limit
+
+**Goal:** Allow optional hard limits for upstream request body size to reduce risk from oversized forwarded payloads.
+
+**Target features:**
+- Add `max_upstream_request_body_bytes` config + CLI flag wiring
+- Enforce limit in pipeline forwarding path with `413 Request Entity Too Large`
+- Add tests for within-limit passthrough and over-limit rejection
+
 ## Context
 
 Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_test`, stdlib `testing` only, `httptest` for servers, existing helper `startTestProxy` in `mitm_h2_integration_test.go`. `handleForward` and `rawTunnel` are unexported functions in `internal/proxy/proxy.go` — tests must exercise them through the exported `ServeHTTP` surface.
@@ -149,6 +158,7 @@ Brownfield Go project. Codebase mapped 2026-02-24. Test pattern: `package proxy_
 | CLI output paths + banner now covered by tests (v1.7) | Prevent silent regressions in user-facing CLI text output | ✓ Complete |
 | rawTunnel waits via WaitGroup (v1.8) | Remove fragile goroutine-count/channel coupling | ✓ Complete |
 | map_local path validated at compile time (v1.9) | Prevent runtime 500 from missing filesystem paths | ✓ Complete |
+| Upstream request body limit configurable (v1.10) | Allow explicit protection against oversized forwarded request bodies | ✓ Complete |
 
 ---
-*Last updated: 2026-02-24 after milestone v1.9 implementation*
+*Last updated: 2026-02-24 after milestone v1.10 implementation*
