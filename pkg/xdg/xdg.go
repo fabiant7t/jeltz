@@ -1,4 +1,4 @@
-// Package xdg resolves XDG Base Directory paths for jeltz.
+// Package xdg resolves XDG Base Directory Specification paths.
 package xdg
 
 import (
@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 )
 
-// ConfigDir returns the jeltz config directory, creating it if absent.
-// Uses $XDG_CONFIG_HOME/jeltz or $HOME/.config/jeltz.
+// ConfigDir returns the application config directory, creating it if absent.
+// Uses $XDG_CONFIG_HOME or $HOME/.config as the base.
 func ConfigDir() (string, error) {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
@@ -24,8 +24,8 @@ func ConfigDir() (string, error) {
 	return dir, nil
 }
 
-// DataDir returns the jeltz data directory, creating it if absent.
-// Uses $XDG_DATA_HOME/jeltz or $HOME/.local/share/jeltz.
+// DataDir returns the application data directory, creating it if absent.
+// Uses $XDG_DATA_HOME or $HOME/.local/share as the base.
 func DataDir() (string, error) {
 	base := os.Getenv("XDG_DATA_HOME")
 	if base == "" {
