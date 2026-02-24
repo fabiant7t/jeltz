@@ -4,12 +4,10 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
+	"strconv"
 )
 
 // Version is the only supported config version.
@@ -74,17 +72,17 @@ type RawSetOp struct {
 // yamlConfig mirrors the YAML schema exactly for strict decoding.
 type yamlConfig struct {
 	Version                         int       `yaml:"version"`
-	Listen                          string    `yaml:"listen"`
-	BasePath                        string    `yaml:"base_path"`
-	DataDir                         string    `yaml:"data_dir"`
-	InsecureUpstream                bool      `yaml:"insecure_upstream"`
-	DumpTraffic                     bool      `yaml:"dump_traffic"`
-	MaxBodyBytes                    int64     `yaml:"max_body_bytes"`
-	MaxUpstreamRequestBodyBytes     int64     `yaml:"max_upstream_request_body_bytes"`
-	UpstreamDialTimeoutMS           int64     `yaml:"upstream_dial_timeout_ms"`
-	UpstreamTLSHandshakeTimeoutMS   int64     `yaml:"upstream_tls_handshake_timeout_ms"`
-	UpstreamResponseHeaderTimeoutMS int64     `yaml:"upstream_response_header_timeout_ms"`
-	UpstreamIdleConnTimeoutMS       int64     `yaml:"upstream_idle_conn_timeout_ms"`
+	Listen                          *string   `yaml:"listen"`
+	BasePath                        *string   `yaml:"base_path"`
+	DataDir                         *string   `yaml:"data_dir"`
+	InsecureUpstream                *bool     `yaml:"insecure_upstream"`
+	DumpTraffic                     *bool     `yaml:"dump_traffic"`
+	MaxBodyBytes                    *int64    `yaml:"max_body_bytes"`
+	MaxUpstreamRequestBodyBytes     *int64    `yaml:"max_upstream_request_body_bytes"`
+	UpstreamDialTimeoutMS           *int64    `yaml:"upstream_dial_timeout_ms"`
+	UpstreamTLSHandshakeTimeoutMS   *int64    `yaml:"upstream_tls_handshake_timeout_ms"`
+	UpstreamResponseHeaderTimeoutMS *int64    `yaml:"upstream_response_header_timeout_ms"`
+	UpstreamIdleConnTimeoutMS       *int64    `yaml:"upstream_idle_conn_timeout_ms"`
 	Rules                           []RawRule `yaml:"rules"`
 }
 
@@ -109,28 +107,27 @@ type CLIOverrides struct {
 // configFile may be empty (no config file). xdgCfg and xdgData are the
 // resolved XDG directories used for path defaults. cli overrides final values.
 func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error) {
-	v := viper.New()
+	cfg := &Config{
+		Listen:                          "127.0.0.1:8080",
+		BasePath:                        "",
+		DataDir:                         "",
+		LogLevel:                        "info",
+		InsecureUpstream:                false,
+		DumpTraffic:                     false,
+		MaxBodyBytes:                    int64(1048576),
+		MaxUpstreamRequestBodyBytes:     int64(0),
+		UpstreamDialTimeoutMS:           int64(10000),
+		UpstreamTLSHandshakeTimeoutMS:   int64(10000),
+		UpstreamResponseHeaderTimeoutMS: int64(30000),
+		UpstreamIdleConnTimeoutMS:       int64(60000),
+	}
 
-	// Defaults.
-	v.SetDefault("listen", "127.0.0.1:8080")
-	v.SetDefault("base_path", "")
-	v.SetDefault("data_dir", "")
-	v.SetDefault("insecure_upstream", false)
-	v.SetDefault("dump_traffic", false)
-	v.SetDefault("max_body_bytes", int64(1048576))
-	v.SetDefault("max_upstream_request_body_bytes", int64(0))
-	v.SetDefault("upstream_dial_timeout_ms", int64(10000))
-	v.SetDefault("upstream_tls_handshake_timeout_ms", int64(10000))
-	v.SetDefault("upstream_response_header_timeout_ms", int64(30000))
-	v.SetDefault("upstream_idle_conn_timeout_ms", int64(60000))
-	v.SetDefault("rules", []any{})
-
-	// Env vars (JELTZ_ prefix).
-	v.SetEnvPrefix("JELTZ")
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
+	if err := applyEnv(cfg); err != nil {
+		return nil, err
+	}
 
 	var rawYAML []byte
+	var yc yamlConfig
 
 	if configFile != "" {
 		if _, err := os.Stat(configFile); err != nil {
@@ -141,47 +138,15 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 		if readErr != nil {
 			return nil, fmt.Errorf("reading config file: %w", readErr)
 		}
-		v.SetConfigType("yaml")
-		if err := v.ReadConfig(bytes.NewReader(rawYAML)); err != nil {
-			return nil, fmt.Errorf("reading config file: %w", err)
-		}
-	}
-
-	// Strict YAML validation via yaml.v3.
-	if len(rawYAML) > 0 {
 		dec := yaml.NewDecoder(bytes.NewReader(rawYAML))
 		dec.KnownFields(true)
-		var yc yamlConfig
 		if err := dec.Decode(&yc); err != nil {
 			return nil, fmt.Errorf("config validation: %w", err)
 		}
 		if yc.Version != Version {
 			return nil, fmt.Errorf("config version must be %d, got %d", Version, yc.Version)
 		}
-	}
-
-	// Build Config from viper values.
-	cfg := &Config{
-		Listen:                          v.GetString("listen"),
-		BasePath:                        v.GetString("base_path"),
-		DataDir:                         v.GetString("data_dir"),
-		LogLevel:                        "info",
-		InsecureUpstream:                v.GetBool("insecure_upstream"),
-		DumpTraffic:                     v.GetBool("dump_traffic"),
-		MaxBodyBytes:                    v.GetInt64("max_body_bytes"),
-		MaxUpstreamRequestBodyBytes:     v.GetInt64("max_upstream_request_body_bytes"),
-		UpstreamDialTimeoutMS:           v.GetInt64("upstream_dial_timeout_ms"),
-		UpstreamTLSHandshakeTimeoutMS:   v.GetInt64("upstream_tls_handshake_timeout_ms"),
-		UpstreamResponseHeaderTimeoutMS: v.GetInt64("upstream_response_header_timeout_ms"),
-		UpstreamIdleConnTimeoutMS:       v.GetInt64("upstream_idle_conn_timeout_ms"),
-	}
-
-	// Parse rules via yaml.v3 for proper typing (viper loses type info).
-	if len(rawYAML) > 0 {
-		var yc yamlConfig
-		if err := yaml.Unmarshal(rawYAML, &yc); err != nil {
-			return nil, fmt.Errorf("parsing rules: %w", err)
-		}
+		applyFileConfig(cfg, yc)
 		cfg.Rules = yc.Rules
 	}
 
@@ -225,21 +190,115 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 		return nil, fmt.Errorf("request/timeout values must be >= 0")
 	}
 
-	// Resolve base_path.
-	effectiveBase := v.GetString("base_path")
-	if cli.BasePath != "" {
-		effectiveBase = cli.BasePath
-	}
-	cfg.BasePath = resolveBasePath(effectiveBase, xdgCfg)
-
-	// Resolve data_dir.
-	effectiveData := v.GetString("data_dir")
-	if cli.DataDir != "" {
-		effectiveData = cli.DataDir
-	}
-	cfg.DataDir = resolveDataDir(effectiveData, xdgData)
+	cfg.BasePath = resolveBasePath(cfg.BasePath, xdgCfg)
+	cfg.DataDir = resolveDataDir(cfg.DataDir, xdgData)
 
 	return cfg, nil
+}
+
+func applyFileConfig(cfg *Config, yc yamlConfig) {
+	if yc.Listen != nil {
+		cfg.Listen = *yc.Listen
+	}
+	if yc.BasePath != nil {
+		cfg.BasePath = *yc.BasePath
+	}
+	if yc.DataDir != nil {
+		cfg.DataDir = *yc.DataDir
+	}
+	if yc.InsecureUpstream != nil {
+		cfg.InsecureUpstream = *yc.InsecureUpstream
+	}
+	if yc.DumpTraffic != nil {
+		cfg.DumpTraffic = *yc.DumpTraffic
+	}
+	if yc.MaxBodyBytes != nil {
+		cfg.MaxBodyBytes = *yc.MaxBodyBytes
+	}
+	if yc.MaxUpstreamRequestBodyBytes != nil {
+		cfg.MaxUpstreamRequestBodyBytes = *yc.MaxUpstreamRequestBodyBytes
+	}
+	if yc.UpstreamDialTimeoutMS != nil {
+		cfg.UpstreamDialTimeoutMS = *yc.UpstreamDialTimeoutMS
+	}
+	if yc.UpstreamTLSHandshakeTimeoutMS != nil {
+		cfg.UpstreamTLSHandshakeTimeoutMS = *yc.UpstreamTLSHandshakeTimeoutMS
+	}
+	if yc.UpstreamResponseHeaderTimeoutMS != nil {
+		cfg.UpstreamResponseHeaderTimeoutMS = *yc.UpstreamResponseHeaderTimeoutMS
+	}
+	if yc.UpstreamIdleConnTimeoutMS != nil {
+		cfg.UpstreamIdleConnTimeoutMS = *yc.UpstreamIdleConnTimeoutMS
+	}
+}
+
+func applyEnv(cfg *Config) error {
+	if v, ok := os.LookupEnv("JELTZ_LISTEN"); ok {
+		cfg.Listen = v
+	}
+	if v, ok := os.LookupEnv("JELTZ_BASE_PATH"); ok {
+		cfg.BasePath = v
+	}
+	if v, ok := os.LookupEnv("JELTZ_DATA_DIR"); ok {
+		cfg.DataDir = v
+	}
+	if v, ok := os.LookupEnv("JELTZ_INSECURE_UPSTREAM"); ok {
+		p, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("invalid JELTZ_INSECURE_UPSTREAM: %w", err)
+		}
+		cfg.InsecureUpstream = p
+	}
+	if v, ok := os.LookupEnv("JELTZ_DUMP_TRAFFIC"); ok {
+		p, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("invalid JELTZ_DUMP_TRAFFIC: %w", err)
+		}
+		cfg.DumpTraffic = p
+	}
+	if v, ok := os.LookupEnv("JELTZ_MAX_BODY_BYTES"); ok {
+		p, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid JELTZ_MAX_BODY_BYTES: %w", err)
+		}
+		cfg.MaxBodyBytes = p
+	}
+	if v, ok := os.LookupEnv("JELTZ_MAX_UPSTREAM_REQUEST_BODY_BYTES"); ok {
+		p, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid JELTZ_MAX_UPSTREAM_REQUEST_BODY_BYTES: %w", err)
+		}
+		cfg.MaxUpstreamRequestBodyBytes = p
+	}
+	if v, ok := os.LookupEnv("JELTZ_UPSTREAM_DIAL_TIMEOUT_MS"); ok {
+		p, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid JELTZ_UPSTREAM_DIAL_TIMEOUT_MS: %w", err)
+		}
+		cfg.UpstreamDialTimeoutMS = p
+	}
+	if v, ok := os.LookupEnv("JELTZ_UPSTREAM_TLS_HANDSHAKE_TIMEOUT_MS"); ok {
+		p, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid JELTZ_UPSTREAM_TLS_HANDSHAKE_TIMEOUT_MS: %w", err)
+		}
+		cfg.UpstreamTLSHandshakeTimeoutMS = p
+	}
+	if v, ok := os.LookupEnv("JELTZ_UPSTREAM_RESPONSE_HEADER_TIMEOUT_MS"); ok {
+		p, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid JELTZ_UPSTREAM_RESPONSE_HEADER_TIMEOUT_MS: %w", err)
+		}
+		cfg.UpstreamResponseHeaderTimeoutMS = p
+	}
+	if v, ok := os.LookupEnv("JELTZ_UPSTREAM_IDLE_CONN_TIMEOUT_MS"); ok {
+		p, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid JELTZ_UPSTREAM_IDLE_CONN_TIMEOUT_MS: %w", err)
+		}
+		cfg.UpstreamIdleConnTimeoutMS = p
+	}
+	return nil
 }
 
 // resolveBasePath returns the absolute effective base path.

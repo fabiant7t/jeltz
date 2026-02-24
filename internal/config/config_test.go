@@ -208,3 +208,55 @@ func TestLoad_MissingConfigFile(t *testing.T) {
 		t.Fatal("expected error for missing config file")
 	}
 }
+
+func TestLoad_EnvOverridesDefaults(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("JELTZ_LISTEN", "127.0.0.1:8181")
+	t.Setenv("JELTZ_INSECURE_UPSTREAM", "true")
+	t.Setenv("JELTZ_UPSTREAM_DIAL_TIMEOUT_MS", "2222")
+
+	cfg, err := config.Load("", tmp, tmp, config.CLIOverrides{})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Listen != "127.0.0.1:8181" {
+		t.Fatalf("listen from env: got %q", cfg.Listen)
+	}
+	if !cfg.InsecureUpstream {
+		t.Fatal("insecure_upstream from env should be true")
+	}
+	if cfg.UpstreamDialTimeoutMS != 2222 {
+		t.Fatalf("upstream_dial_timeout_ms from env: got %d", cfg.UpstreamDialTimeoutMS)
+	}
+}
+
+func TestLoad_FileOverridesEnv(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("JELTZ_LISTEN", "127.0.0.1:8181")
+	t.Setenv("JELTZ_INSECURE_UPSTREAM", "false")
+
+	p := writeConfig(t, tmp, `
+version: 1
+listen: "127.0.0.1:9191"
+insecure_upstream: true
+`)
+	cfg, err := config.Load(p, tmp, tmp, config.CLIOverrides{})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Listen != "127.0.0.1:9191" {
+		t.Fatalf("file listen should override env: got %q", cfg.Listen)
+	}
+	if !cfg.InsecureUpstream {
+		t.Fatal("file insecure_upstream should override env")
+	}
+}
+
+func TestLoad_InvalidEnvBool(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("JELTZ_DUMP_TRAFFIC", "not-a-bool")
+
+	if _, err := config.Load("", tmp, tmp, config.CLIOverrides{}); err == nil {
+		t.Fatal("expected error for invalid env bool")
+	}
+}

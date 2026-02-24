@@ -14,11 +14,6 @@
 
 ## Technical Debt
 
-**Config loading reads the YAML file twice:**
-- `internal/config/config.go` lines 120–161: When a config file is present, it is read once by viper (`v.ReadInConfig()`), once again explicitly for strict YAML validation (`os.ReadFile` + `yaml.NewDecoder`), and then unmarshalled a third time to extract typed rules (`yaml.Unmarshal`). This is fragile — a race or file change between reads could produce inconsistent state, and the triple-parse is unnecessary complexity.
-- Impact: Subtle staleness bugs if the file changes mid-startup; maintenance overhead.
-- Mitigation path: Read the file once into memory; feed that single byte slice to both viper and yaml.v3.
-
 ---
 
 ## Missing Pieces
@@ -43,9 +38,6 @@
 ---
 
 ## Opportunities
-
-**Replace triple-read config parsing with a single-pass approach:**
-- Reading the YAML once into `[]byte`, using that for viper initialisation, strict validation, and rule parsing would eliminate the redundant reads and the associated fragility. See `internal/config/config.go`.
 
 **Windows build target is missing from goreleaser:**
 - `.goreleaser.yaml` builds only `linux` and `darwin`. Adding `windows` would broaden the tool's reach without code changes.
