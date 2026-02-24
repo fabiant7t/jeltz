@@ -8,16 +8,16 @@
 
 **Core value:** Intercept and modify HTTPS traffic transparently — any rule change takes effect without touching the browser or OS trust store again.
 
-**Current focus:** Milestone v1.13 — remaining reliability gaps (CA/cache risk items, maintenance debt).
+**Current focus:** Milestone transition — define next implementation milestone.
 
 ---
 
 ## Current Position
 
 **Phase:** Milestone transition
-**Plan:** v1.13 reliability follow-ups
-**Status:** v1.12 complete; next milestone defined
-**Last activity:** 2026-02-24 — Added Linux/macOS/Windows CI test matrix and tightened XDG fallback assertions
+**Plan:** Post-v1.13 planning refresh
+**Status:** v1.13 reliability follow-ups complete
+**Last activity:** 2026-02-24 — Refreshed codebase mapping docs and ran `go mod tidy`
 
 ---
 
@@ -27,7 +27,7 @@
 
 | Decision | Rationale |
 |----------|-----------|
-| Config triple-read fixed (v1.0) | Single `os.ReadFile`, shared `[]byte` via `v.ReadConfig(bytes.NewReader(rawYAML))` |
+| Config triple-read fixed (v1.0) | Single `os.ReadFile` + strict `yaml.v3` decode with direct env/CLI layering |
 | `config.Load` signature unchanged | Callers in `cmd/jeltz/main.go` need no update |
 | Test via `ServeHTTP` surface | `handleForward`/`rawTunnel` are unexported; tests must drive them through the exported handler |
 | CLI bool/int pointers only when flags are visited | Prevent default CLI values from overriding YAML unexpectedly |

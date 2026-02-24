@@ -8,7 +8,7 @@
 
 ## Phases
 
-- [x] **Phase 1: Config Read-Once Refactor** - Consolidate config file I/O to a single `os.ReadFile` call feeding Viper, KnownFields validation, and rule parsing from one shared `[]byte` (completed 2026-02-24)
+- [x] **Phase 1: Config Read-Once Refactor** - Consolidate config file I/O to a single `os.ReadFile` call feeding strict `yaml.v3` validation and rule parsing from one shared `[]byte` (completed 2026-02-24)
 
 ---
 
@@ -32,7 +32,7 @@
 **Plans**: 1 plan
 
 Plans:
-- [x] 01-01-PLAN.md — Replace double-read with single os.ReadFile + v.SetConfigType/v.ReadConfig in config.Load (completed 2026-02-24)
+- [x] 01-01-PLAN.md — Replace double-read with single os.ReadFile + strict yaml decode flow in config.Load (completed 2026-02-24)
 
 ---
 

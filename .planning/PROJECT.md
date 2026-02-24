@@ -37,7 +37,15 @@ Intercept and modify HTTPS traffic transparently — any rule change takes effec
 - Per-host cert cache eviction — not requested
 - Windows build target — not requested
 
-## Current Milestone: v1.13 — Remaining Reliability Gaps
+## Current Milestone: Milestone Transition
+
+**Goal:** Define the next milestone after completing v1.13 reliability follow-ups.
+
+**Target features:**
+- Keep planning metadata synchronized with implemented state
+- Select and scope the next concrete engineering milestone
+
+## Completed Milestone: v1.13 — Remaining Reliability Gaps
 
 **Goal:** Address the remaining reliability risks after proxy/path hardening and cross-platform test coverage setup.
 
