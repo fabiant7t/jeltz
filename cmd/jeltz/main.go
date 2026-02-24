@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/fabiant7t/jeltz/internal/ca"
 	"github.com/fabiant7t/jeltz/internal/config"
 	"github.com/fabiant7t/jeltz/internal/logging"
 	"github.com/fabiant7t/jeltz/internal/proxy"
@@ -120,7 +121,12 @@ func runCAPath() {
 		fmt.Fprintf(os.Stderr, "jeltz ca-path: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println(filepath.Join(dataDir, "ca.crt.pem"))
+	caInstance, err := ca.Load(dataDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "jeltz ca-path: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println(caInstance.CertPath())
 }
 
 func runCAInstallHint() {
@@ -129,7 +135,12 @@ func runCAInstallHint() {
 		fmt.Fprintf(os.Stderr, "jeltz ca-install-hint: %v\n", err)
 		os.Exit(1)
 	}
-	caPath := filepath.Join(dataDir, "ca.crt.pem")
+	caInstance, err := ca.Load(dataDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "jeltz ca-install-hint: %v\n", err)
+		os.Exit(1)
+	}
+	caPath := caInstance.CertPath()
 	fmt.Printf(`jeltz CA Certificate Installation Hints
 
 CA certificate path: %s
