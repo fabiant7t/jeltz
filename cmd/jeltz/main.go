@@ -118,7 +118,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	printBanner(cfg.Listen, *configFile, cfg.DataDir, caInstance.CertPath(),
+	printBanner(cfg.Listen, *configFile, cfg.DataDir, caInstance.CertPath(), caInstance.P12Path(),
 		len(cfg.Rules), *logLevel, cfg.InsecureUpstream, cfg.DumpTraffic)
 
 	pipeline := proxy.NewPipeline(rs, cfg.InsecureUpstream)

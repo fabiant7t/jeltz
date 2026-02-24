@@ -29,7 +29,7 @@ func useColor() bool {
 }
 
 // printBanner writes a human-readable startup summary to stderr.
-func printBanner(listen, configFile, dataDir, caCertPath string, rules int, logLevel string, insecureUpstream, dumpTraffic bool) {
+func printBanner(listen, configFile, dataDir, caCertPath, caP12Path string, rules int, logLevel string, insecureUpstream, dumpTraffic bool) {
 	color := useColor()
 
 	bold := func(s string) string {
@@ -98,6 +98,7 @@ func printBanner(listen, configFile, dataDir, caCertPath string, rules int, logL
 	}
 	fmt.Fprintf(w, "%s%s\n", label("data"), dataDir)
 	fmt.Fprintf(w, "%s%s\n", label("ca cert"), caCertPath)
+	fmt.Fprintf(w, "%s%s\n", label("ca p12"), caP12Path)
 
 	// Options cluster.
 	fmt.Fprintln(w)
