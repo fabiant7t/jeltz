@@ -31,9 +31,9 @@
 - Risk: Low for development use; hot single-host bursts still queue on first-miss issuance.
 - Mitigation path: Keep as-is unless profiling shows this path is a bottleneck.
 
-**No rate-limiting or connection cap on the proxy listener:**
+**No rate-limiting or connection cap on the proxy listener:** *(known, accepted)*
 - `internal/proxy/proxy.go`: The `http.Server` has no maximum connections setting. A client could open many simultaneous CONNECT tunnels, each spawning goroutines and issuing leaf certs.
-- Risk: Low for a single-developer localhost tool; relevant if exposed beyond loopback.
+- **Decision:** Intentional for local development usage. This is not treated as backlog work unless deployment scope changes beyond a dev-only tool.
 
 ---
 
