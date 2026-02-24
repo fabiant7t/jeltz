@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 )
 
-// ConfigDir returns the application config directory, creating it if absent.
+// ConfigDir returns the config directory for appName, creating it if absent.
 // Uses $XDG_CONFIG_HOME or $HOME/.config as the base.
-func ConfigDir() (string, error) {
+func ConfigDir(appName string) (string, error) {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -17,16 +17,16 @@ func ConfigDir() (string, error) {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	dir := filepath.Join(base, "jeltz")
+	dir := filepath.Join(base, appName)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
 	return dir, nil
 }
 
-// DataDir returns the application data directory, creating it if absent.
+// DataDir returns the data directory for appName, creating it if absent.
 // Uses $XDG_DATA_HOME or $HOME/.local/share as the base.
-func DataDir() (string, error) {
+func DataDir(appName string) (string, error) {
 	base := os.Getenv("XDG_DATA_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -35,7 +35,7 @@ func DataDir() (string, error) {
 		}
 		base = filepath.Join(home, ".local", "share")
 	}
-	dir := filepath.Join(base, "jeltz")
+	dir := filepath.Join(base, appName)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}

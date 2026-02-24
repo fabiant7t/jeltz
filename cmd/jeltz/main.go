@@ -37,8 +37,8 @@ func main() {
 	}
 
 	// Resolve XDG dirs for flag defaults.
-	xdgCfg, _ := xdg.ConfigDir()
-	xdgData, _ := xdg.DataDir()
+	xdgCfg, _ := xdg.ConfigDir("jeltz")
+	xdgData, _ := xdg.DataDir("jeltz")
 
 	defaultConfig := ""
 	if xdgCfg != "" {
@@ -145,7 +145,7 @@ func main() {
 }
 
 func runCAPath() {
-	dataDir, err := xdg.DataDir()
+	dataDir, err := xdg.DataDir("jeltz")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "jeltz ca-path: %v\n", err)
 		os.Exit(1)
@@ -159,7 +159,7 @@ func runCAPath() {
 }
 
 func runCAInstallHint() {
-	dataDir, err := xdg.DataDir()
+	dataDir, err := xdg.DataDir("jeltz")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "jeltz ca-install-hint: %v\n", err)
 		os.Exit(1)
