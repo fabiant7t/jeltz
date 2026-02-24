@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fabiant7t/jeltz/pkg/p12"
 )
 
 const (
@@ -23,6 +24,9 @@ const (
 	caCertFile = "ca.crt.pem"
 	caP12File  = "ca.p12"
 	certsDir   = "certs"
+
+	// P12Password is the fixed password for all jeltz PKCS#12 bundles.
+	P12Password = "jeltz"
 
 	// 100-year validity as required by spec.
 	validity = 100 * 365 * 24 * time.Hour
@@ -64,7 +68,9 @@ func Load(dataDir string) (*CA, error) {
 	// Write PKCS#12 bundle if missing (first run or upgrade).
 	p12Path := filepath.Join(dataDir, caP12File)
 	if _, err := os.Stat(p12Path); os.IsNotExist(err) {
-		_ = writeP12(p12Path, loaded.key, loaded.cert)
+		if der, err := p12.Encode(loaded.key, loaded.cert, P12Password); err == nil {
+			_ = os.WriteFile(p12Path, der, 0o600)
+		}
 	}
 
 	return loaded, nil
