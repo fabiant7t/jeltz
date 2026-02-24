@@ -363,5 +363,5 @@ Locations follow the [XDG Base Directory Specification](https://specifications.f
 - The outer listener (the port you configure as your HTTP proxy) is **HTTP/1.1 only**. HTTP/2 is supported only on the decrypted client-to-jeltz leg inside CONNECT tunnels.
 - No WebSocket support.
 - No transparent/intercepting proxy (requires iptables/TPROXY).
-- No web UI or TUI.
+- No web UI.
 - `map_remote` rule type is not implemented (the config model anticipates it).
