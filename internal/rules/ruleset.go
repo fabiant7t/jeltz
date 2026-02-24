@@ -25,9 +25,6 @@ type HeaderRule struct {
 type RuleSet struct {
 	Headers  []*HeaderRule
 	MapLocal []*MapLocalRule
-	// ordered is the original order (header/map_local interleaved) for correct
-	// request header application.
-	orderedHeaders []*HeaderRule
 }
 
 // Compile compiles all raw rules from config. basePath is used to resolve
