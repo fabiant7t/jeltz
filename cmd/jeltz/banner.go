@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/fabiant7t/jeltz/internal/ca"
 )
 
 const (
@@ -98,7 +100,7 @@ func printBanner(listen, configFile, dataDir, caCertPath, caP12Path string, rule
 	}
 	fmt.Fprintf(w, "%s%s\n", label("data"), dataDir)
 	fmt.Fprintf(w, "%s%s\n", label("ca cert"), caCertPath)
-	fmt.Fprintf(w, "%s%s\n", label("ca p12"), caP12Path)
+	fmt.Fprintf(w, "%s%s  %s\n", label("ca p12"), caP12Path, dim("(password: "+ca.P12Password+")"))
 
 	// Options cluster.
 	fmt.Fprintln(w)
