@@ -83,6 +83,50 @@ func TestPipeline_MapLocal_ServesFile(t *testing.T) {
 	}
 }
 
+func TestPipeline_MapLocal_ServesLargeFile(t *testing.T) {
+	dir := t.TempDir()
+	subDir := filepath.Join(dir, "static")
+	_ = os.MkdirAll(subDir, 0o755)
+
+	want := bytes.Repeat([]byte("0123456789abcdef"), 64*1024) // 1 MiB
+	_ = os.WriteFile(filepath.Join(subDir, "large.bin"), want, 0o644)
+
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "map_local",
+			Match: config.RawMatch{Host: `^example\.com$`, Path: `^/static/`},
+			Path:  subDir,
+		},
+	}, dir)
+
+	p := proxy.NewPipeline(rs, false)
+	fc := &proxy.FlowContext{
+		Logger:     testLogger(),
+		ClientAddr: "127.0.0.1:1234",
+		Proto:      "http/1.1",
+		Scheme:     "https",
+		Host:       "example.com",
+		Method:     "GET",
+		Path:       "/static/large.bin",
+		Header:     make(http.Header),
+	}
+
+	result, err := p.Run(fc)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.Status != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", result.Status)
+	}
+	got, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("body mismatch: got %d bytes, want %d", len(got), len(want))
+	}
+}
+
 func TestPipeline_ResponseHeaderRule(t *testing.T) {
 	dir := t.TempDir()
 	subDir := filepath.Join(dir, "static")

@@ -205,18 +205,28 @@ func emptyResult(status int, source string) *ResponseResult {
 
 // serveLocal builds a ResponseResult from a MapLocalResult.
 func serveLocal(mlr *rules.MapLocalResult) (*ResponseResult, error) {
-	data, err := os.ReadFile(mlr.FSTarget)
+	f, err := os.Open(mlr.FSTarget)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return emptyResult(http.StatusNotFound, "local"), nil
 		}
 		return nil, fmt.Errorf("reading local file %q: %w", mlr.FSTarget, err)
 	}
+	// Keep file open for streaming as response body.
+	// It is closed by WriteResponse after io.Copy.
 
-	snip := data
-	if len(snip) > 512 {
-		snip = snip[:512]
+	snip := make([]byte, 512)
+	n, readErr := io.ReadFull(f, snip)
+	if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+		f.Close() //nolint:errcheck
+		return nil, fmt.Errorf("reading local file %q: %w", mlr.FSTarget, readErr)
 	}
+	snip = snip[:n]
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		f.Close() //nolint:errcheck
+		return nil, fmt.Errorf("seeking local file %q: %w", mlr.FSTarget, err)
+	}
+
 	ct := rules.DetectContentType(mlr.FSTarget, mlr.ContentType, func(_ string) ([]byte, error) {
 		return snip, nil
 	})
@@ -227,7 +237,7 @@ func serveLocal(mlr *rules.MapLocalResult) (*ResponseResult, error) {
 	return &ResponseResult{
 		Status:  mlr.StatusCode,
 		Headers: h,
-		Body:    io.NopCloser(bytes.NewReader(data)),
+		Body:    f,
 		Source:  "local",
 	}, nil
 }
