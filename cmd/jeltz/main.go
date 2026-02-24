@@ -89,20 +89,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("jeltz starting",
-		slog.String(logging.KeyComponent, "main"),
-		slog.String("listen", cfg.Listen),
-		slog.String("config_file", *configFile),
-		slog.String("base_path", cfg.BasePath),
-		slog.String("data_dir", cfg.DataDir),
-		slog.String("xdg_config_dir", xdgCfg),
-		slog.String("xdg_data_dir", xdgData),
-		slog.Bool("insecure_upstream", cfg.InsecureUpstream),
-		slog.Bool("dump_traffic", cfg.DumpTraffic),
-		slog.Int64("max_body_bytes", cfg.MaxBodyBytes),
-		slog.Int("rules", len(cfg.Rules)),
-	)
-
 	// Load CA (creates on first run).
 	caInstance, err := ca.Load(cfg.DataDir)
 	if err != nil {
@@ -113,7 +99,6 @@ func main() {
 		)
 		os.Exit(1)
 	}
-	logger.Info("CA loaded", slog.String(logging.KeyComponent, "main"), slog.String("ca_cert", caInstance.CertPath()))
 
 	// Compile rules.
 	rs, err := rules.Compile(cfg.Rules, cfg.BasePath)
@@ -125,6 +110,9 @@ func main() {
 		)
 		os.Exit(1)
 	}
+
+	printBanner(cfg.Listen, *configFile, cfg.DataDir, caInstance.CertPath(),
+		len(cfg.Rules), *logLevel, cfg.InsecureUpstream, cfg.DumpTraffic)
 
 	pipeline := proxy.NewPipeline(rs, cfg.InsecureUpstream)
 	if cfg.DumpTraffic {
