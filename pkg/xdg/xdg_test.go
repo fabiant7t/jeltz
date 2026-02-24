@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fabiant7t/jeltz/internal/xdg"
+	"github.com/fabiant7t/jeltz/pkg/xdg"
 )
 
 func TestConfigDir_XDGEnv(t *testing.T) {

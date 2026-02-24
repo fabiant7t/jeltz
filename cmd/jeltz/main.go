@@ -15,7 +15,7 @@ import (
 	"github.com/fabiant7t/jeltz/internal/logging"
 	"github.com/fabiant7t/jeltz/internal/proxy"
 	"github.com/fabiant7t/jeltz/internal/rules"
-	"github.com/fabiant7t/jeltz/internal/xdg"
+	"github.com/fabiant7t/jeltz/pkg/xdg"
 )
 
 func main() {
