@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"strings"
 	"testing"
 )
 
@@ -107,4 +109,13 @@ func TestInt64FlagPtrIfSet(t *testing.T) {
 			t.Fatalf("got %v, want pointer to 0", got)
 		}
 	})
+}
+
+func TestPrintStartupFailure(t *testing.T) {
+	out := captureStderr(t, func() {
+		printStartupFailure("failed to load config", errors.New("yaml: line 3: bad field"))
+	})
+	if !strings.Contains(out, "jeltz: failed to load config: yaml: line 3: bad field") {
+		t.Fatalf("unexpected startup failure output: %q", out)
+	}
 }

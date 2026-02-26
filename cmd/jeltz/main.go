@@ -122,6 +122,7 @@ func main() {
 			slog.String(logging.KeyEvent, "config_error"),
 			slog.String(logging.KeyError, err.Error()),
 		)
+		printStartupFailure("failed to load config", err)
 		os.Exit(1)
 	}
 
@@ -133,6 +134,7 @@ func main() {
 			slog.String(logging.KeyEvent, "config_error"),
 			slog.String(logging.KeyError, err.Error()),
 		)
+		printStartupFailure("failed to load CA", err)
 		os.Exit(1)
 	}
 
@@ -144,6 +146,7 @@ func main() {
 			slog.String(logging.KeyEvent, "config_error"),
 			slog.String(logging.KeyError, err.Error()),
 		)
+		printStartupFailure("failed to compile rules", err)
 		os.Exit(1)
 	}
 
@@ -243,6 +246,10 @@ func int64FlagPtrIfSet(fs *flag.FlagSet, name string, value int64) *int64 {
 	}
 	v := value
 	return &v
+}
+
+func printStartupFailure(message string, err error) {
+	fmt.Fprintf(os.Stderr, "jeltz: %s: %v\n", message, err)
 }
 
 func flagWasSet(fs *flag.FlagSet, name string) bool {
