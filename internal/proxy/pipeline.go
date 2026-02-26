@@ -153,9 +153,8 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 	var mapResponseOps *rules.Ops
 	var mapRemoteTarget *rules.MapRemoteTarget
 	if p.ruleset != nil {
-		requestContentType := fc.Header.Get("Content-Type")
 		for _, rr := range p.ruleset.Redirect {
-			redirect, err := rr.Resolve(fm, requestContentType)
+			redirect, err := rr.Resolve(fm)
 			if err != nil {
 				return nil, fmt.Errorf("redirect resolve: %w", err)
 			}

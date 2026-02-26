@@ -70,7 +70,7 @@ func TestCompileRedirectRule_InvalidSearchRegex(t *testing.T) {
 	}
 }
 
-func TestCompileRedirectRule_InvalidContentTypeRegex(t *testing.T) {
+func TestCompileRedirectRule_ContentTypeNotSupported(t *testing.T) {
 	_, err := rules.CompileRedirectRule(config.RawRule{
 		Type:        "redirect",
 		Match:       config.RawMatch{Host: `.*`, Path: `.*`},
@@ -79,7 +79,7 @@ func TestCompileRedirectRule_InvalidContentTypeRegex(t *testing.T) {
 		ContentType: "[bad",
 	})
 	if err == nil {
-		t.Fatal("expected error for invalid content_type regex")
+		t.Fatal("expected error for unsupported content_type")
 	}
 }
 
@@ -110,7 +110,7 @@ func TestRedirectRule_Resolve_RewritesFullURL(t *testing.T) {
 		Host:     "example.com",
 		Path:     "/v1/items",
 		RawQuery: "q=1",
-	}, "")
+	})
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -135,38 +135,11 @@ func TestRedirectRule_Resolve_NoRewriteReturnsNil(t *testing.T) {
 
 	result, err := r.Resolve(rules.FlowMeta{
 		Method: "GET", Scheme: "https", Host: "example.com", Path: "/",
-	}, "")
+	})
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if result != nil {
 		t.Fatal("expected nil result")
-	}
-}
-
-func TestRedirectRule_Resolve_ContentTypeFilter(t *testing.T) {
-	r := compileRedirectRule(t, config.RawRule{
-		Type:        "redirect",
-		Match:       config.RawMatch{Host: `^example\.com$`, Path: `^/`},
-		Search:      "example.com",
-		Replace:     "alt.example.com",
-		ContentType: `^application/json`,
-	})
-
-	fm := rules.FlowMeta{Method: "POST", Scheme: "https", Host: "example.com", Path: "/submit"}
-	miss, err := r.Resolve(fm, "text/plain")
-	if err != nil {
-		t.Fatalf("Resolve text/plain: %v", err)
-	}
-	if miss != nil {
-		t.Fatal("expected nil result for non-matching content type")
-	}
-
-	hit, err := r.Resolve(fm, "application/json; charset=utf-8")
-	if err != nil {
-		t.Fatalf("Resolve application/json: %v", err)
-	}
-	if hit == nil {
-		t.Fatal("expected redirect result")
 	}
 }

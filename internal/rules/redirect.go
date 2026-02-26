@@ -16,13 +16,12 @@ const (
 
 // RedirectRule is a compiled redirect rule.
 type RedirectRule struct {
-	Match           *Match
-	ContentTypeExpr *regexp.Regexp // nil = any request content type
-	SearchMode      string
-	SearchRegex     *regexp.Regexp // only set for regex mode
-	SearchLiteral   string         // only set for literal mode
-	Replace         string
-	StatusCode      int
+	Match         *Match
+	SearchMode    string
+	SearchRegex   *regexp.Regexp // only set for regex mode
+	SearchLiteral string         // only set for literal mode
+	Replace       string
+	StatusCode    int
 }
 
 // RedirectResult is returned when a RedirectRule is matched and rewrites a URL.
@@ -58,20 +57,15 @@ func CompileRedirectRule(raw config.RawRule) (*RedirectRule, error) {
 		return nil, fmt.Errorf("status_code must be a 3xx redirect status, got %d", statusCode)
 	}
 
-	var ctExpr *regexp.Regexp
 	if raw.ContentType != "" {
-		ctExpr, err = regexp.Compile(raw.ContentType)
-		if err != nil {
-			return nil, fmt.Errorf("content_type regex %q: %w", raw.ContentType, err)
-		}
+		return nil, fmt.Errorf("redirect rule does not support content_type")
 	}
 
 	r := &RedirectRule{
-		Match:           m,
-		ContentTypeExpr: ctExpr,
-		SearchMode:      mode,
-		Replace:         raw.Replace,
-		StatusCode:      statusCode,
+		Match:      m,
+		SearchMode: mode,
+		Replace:    raw.Replace,
+		StatusCode: statusCode,
 	}
 	if mode == RedirectSearchModeRegex {
 		re, reErr := regexp.Compile(raw.Search)
@@ -86,21 +80,15 @@ func CompileRedirectRule(raw config.RawRule) (*RedirectRule, error) {
 	return r, nil
 }
 
-// Matches reports whether this rule applies to the current flow and request content type.
-func (r *RedirectRule) Matches(fm FlowMeta, requestContentType string) bool {
-	if !r.Match.Matches(fm) {
-		return false
-	}
-	if r.ContentTypeExpr == nil {
-		return true
-	}
-	return r.ContentTypeExpr.MatchString(requestContentType)
+// Matches reports whether this rule applies to the current flow.
+func (r *RedirectRule) Matches(fm FlowMeta) bool {
+	return r.Match.Matches(fm)
 }
 
 // Resolve attempts to match fm and returns redirect metadata.
 // Returns (nil, nil) if the rule does not match or does not rewrite the URL.
-func (r *RedirectRule) Resolve(fm FlowMeta, requestContentType string) (*RedirectResult, error) {
-	if !r.Matches(fm, requestContentType) {
+func (r *RedirectRule) Resolve(fm FlowMeta) (*RedirectResult, error) {
+	if !r.Matches(fm) {
 		return nil, nil
 	}
 

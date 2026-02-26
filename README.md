@@ -344,7 +344,6 @@ Return an HTTP redirect to a rewritten URL for matching requests.
   replace: "https://www.example.com/new/$1"
   search_mode: regex                 # optional: regex (default) or literal
   status_code: 302                   # optional: defaults to 302, must be 3xx
-  content_type: "^application/json"  # optional regex filter on request Content-Type
 ```
 
 **Behavior:**
@@ -352,7 +351,6 @@ Return an HTTP redirect to a rewritten URL for matching requests.
 - `search_mode: regex` uses Go regex replacement semantics (`$1`, `$2`, ... supported in `replace`).
 - `search_mode: literal` treats `search` as an exact string.
 - Redirect is emitted only when the rewrite changes the input URL.
-- `content_type` is optional; if set, only requests whose `Content-Type` header matches the regex are redirected.
 - First matching redirect rule wins.
 
 ---

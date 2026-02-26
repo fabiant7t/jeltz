@@ -253,68 +253,6 @@ func TestPipeline_Redirect_DefaultStatusAndSkipsUpstream(t *testing.T) {
 	}
 }
 
-func TestPipeline_Redirect_ContentTypeFilter(t *testing.T) {
-	var hit int32
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		atomic.AddInt32(&hit, 1)
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("upstream"))
-	}))
-	defer upstream.Close()
-
-	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
-	if err != nil {
-		t.Fatalf("split host port: %v", err)
-	}
-
-	rs := makeRuleSet(t, []config.RawRule{
-		{
-			Type:        "redirect",
-			Match:       config.RawMatch{Host: "^" + host + "$", Path: `^/submit$`},
-			Search:      "/submit",
-			SearchMode:  "literal",
-			Replace:     "/other",
-			ContentType: `^application/json`,
-			StatusCode:  http.StatusTemporaryRedirect,
-		},
-	}, t.TempDir())
-
-	p := proxy.NewPipeline(rs, false)
-
-	noRedirectResult, noRedirectErr := p.Run(&proxy.FlowContext{
-		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
-		Method: "POST", Path: "/submit",
-		Header: http.Header{"Content-Type": []string{"text/plain"}},
-	})
-	if noRedirectErr != nil {
-		t.Fatalf("Run no-redirect: %v", noRedirectErr)
-	}
-	if got, want := noRedirectResult.Status, http.StatusOK; got != want {
-		t.Fatalf("status no-redirect: got %d, want %d", got, want)
-	}
-	if got := atomic.LoadInt32(&hit); got != 1 {
-		t.Fatalf("upstream hits after no-redirect: got %d, want 1", got)
-	}
-
-	redirectResult, redirectErr := p.Run(&proxy.FlowContext{
-		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
-		Method: "POST", Path: "/submit",
-		Header: http.Header{"Content-Type": []string{"application/json; charset=utf-8"}},
-	})
-	if redirectErr != nil {
-		t.Fatalf("Run redirect: %v", redirectErr)
-	}
-	if got, want := redirectResult.Status, http.StatusTemporaryRedirect; got != want {
-		t.Fatalf("status redirect: got %d, want %d", got, want)
-	}
-	if got, want := redirectResult.Headers.Get("Location"), "http://"+host+":"+port+"/other"; got != want {
-		t.Fatalf("location redirect: got %q, want %q", got, want)
-	}
-	if got := atomic.LoadInt32(&hit); got != 1 {
-		t.Fatalf("upstream should not be called for redirect, hit=%d", got)
-	}
-}
-
 func TestPipeline_Redirect_PrecedesMap(t *testing.T) {
 	rs := makeRuleSet(t, []config.RawRule{
 		{
