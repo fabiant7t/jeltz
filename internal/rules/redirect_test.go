@@ -1,6 +1,7 @@
 package rules_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/fabiant7t/jeltz/internal/config"
@@ -83,6 +84,23 @@ func TestCompileRedirectRule_ContentTypeNotSupported(t *testing.T) {
 	}
 }
 
+func TestCompileRedirectRule_InvalidResponseOps(t *testing.T) {
+	_, err := rules.CompileRedirectRule(config.RawRule{
+		Type:    "redirect",
+		Match:   config.RawMatch{Host: `.*`, Path: `.*`},
+		Search:  "foo",
+		Replace: "bar",
+		Response: &config.RawOps{
+			Set: []config.RawSetOp{
+				{Name: "X-Test", Mode: "invalid", Value: "1"},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid response ops")
+	}
+}
+
 func TestCompileRedirectRule_StatusCodeMustBe3xx(t *testing.T) {
 	_, err := rules.CompileRedirectRule(config.RawRule{
 		Type:       "redirect",
@@ -141,5 +159,38 @@ func TestRedirectRule_Resolve_NoRewriteReturnsNil(t *testing.T) {
 	}
 	if result != nil {
 		t.Fatal("expected nil result")
+	}
+}
+
+func TestRedirectRule_Resolve_IncludesResponseOps(t *testing.T) {
+	r := compileRedirectRule(t, config.RawRule{
+		Type:       "redirect",
+		Match:      config.RawMatch{Host: `^example\.com$`, Path: `^/old/`},
+		Search:     "/old/",
+		SearchMode: "literal",
+		Replace:    "/new/",
+		Response: &config.RawOps{
+			Set: []config.RawSetOp{
+				{Name: "X-Rule", Mode: "replace", Value: "1"},
+			},
+		},
+	})
+
+	result, err := r.Resolve(rules.FlowMeta{
+		Method: "GET", Scheme: "https", Host: "example.com", Path: "/old/x",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Response == nil {
+		t.Fatal("expected response ops")
+	}
+	h := make(http.Header)
+	result.Response.Apply(h)
+	if got, want := h.Get("X-Rule"), "1"; got != want {
+		t.Fatalf("X-Rule: got %q, want %q", got, want)
 	}
 }

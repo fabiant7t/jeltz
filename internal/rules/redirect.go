@@ -22,12 +22,14 @@ type RedirectRule struct {
 	SearchLiteral string         // only set for literal mode
 	Replace       string
 	StatusCode    int
+	Response      *Ops
 }
 
 // RedirectResult is returned when a RedirectRule is matched and rewrites a URL.
 type RedirectResult struct {
 	StatusCode int
 	Location   string
+	Response   *Ops
 }
 
 // CompileRedirectRule compiles a RawRule of type redirect.
@@ -61,11 +63,17 @@ func CompileRedirectRule(raw config.RawRule) (*RedirectRule, error) {
 		return nil, fmt.Errorf("redirect rule does not support content_type")
 	}
 
+	respOps, err := CompileOps(raw.Response)
+	if err != nil {
+		return nil, fmt.Errorf("response ops: %w", err)
+	}
+
 	r := &RedirectRule{
 		Match:      m,
 		SearchMode: mode,
 		Replace:    raw.Replace,
 		StatusCode: statusCode,
+		Response:   respOps,
 	}
 	if mode == RedirectSearchModeRegex {
 		re, reErr := regexp.Compile(raw.Search)
@@ -101,6 +109,7 @@ func (r *RedirectRule) Resolve(fm FlowMeta) (*RedirectResult, error) {
 	return &RedirectResult{
 		StatusCode: r.StatusCode,
 		Location:   location,
+		Response:   r.Response,
 	}, nil
 }
 

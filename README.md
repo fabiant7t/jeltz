@@ -191,7 +191,7 @@ Rules are evaluated in file order. All matching header rules apply to every requ
 5. Proxy to upstream (original or remapped)
 6. Apply matching **body_replace** rules (replace-all, in file order)
 7. Apply matching **response** header rules (delete then set)
-8. Apply matched `map`/`map_local` rule's own `response` ops (after global response rules)
+8. Apply matched `redirect`/`map`/`map_local` rule's own `response` ops (after global response rules)
 
 ---
 
@@ -344,6 +344,11 @@ Return an HTTP redirect to a rewritten URL for matching requests.
   replace: "https://www.example.com/new/$1"
   search_mode: regex                 # optional: regex (default) or literal
   status_code: 302                   # optional: defaults to 302, must be 3xx
+  response:                          # optional response header ops
+    set:
+      - name: "Cache-Control"
+        mode: replace
+        value: "no-store"
 ```
 
 **Behavior:**
@@ -351,6 +356,7 @@ Return an HTTP redirect to a rewritten URL for matching requests.
 - `search_mode: regex` uses Go regex replacement semantics (`$1`, `$2`, ... supported in `replace`).
 - `search_mode: literal` treats `search` as an exact string.
 - Redirect is emitted only when the rewrite changes the input URL.
+- Optional `response` ops are applied after global response header rules.
 - First matching redirect rule wins.
 
 ---
@@ -470,6 +476,11 @@ rules:
     search: "^https://www\\.example\\.com/legacy/(.*)$"
     replace: "https://www.example.com/new/$1"
     status_code: 301
+    response:
+      set:
+        - name: "X-Redirect-By"
+          mode: replace
+          value: "jeltz"
 
   # Rewrite an API field in JSON responses
   - type: body_replace

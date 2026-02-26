@@ -150,7 +150,7 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 
 	// Step 3: apply matching redirect rules (first match wins).
 	var result *ResponseResult
-	var mapResponseOps *rules.Ops
+	var ruleResponseOps *rules.Ops
 	var mapRemoteTarget *rules.MapRemoteTarget
 	if p.ruleset != nil {
 		for _, rr := range p.ruleset.Redirect {
@@ -160,6 +160,7 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 			}
 			if redirect != nil {
 				result = serveRedirect(redirect)
+				ruleResponseOps = redirect.Response
 				break
 			}
 		}
@@ -183,7 +184,7 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 					if err != nil {
 						return nil, err
 					}
-					mapResponseOps = mlResult.Response
+					ruleResponseOps = mlResult.Response
 					result = r
 					break mapLoop
 				}
@@ -195,7 +196,7 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 				}
 				if mResult != nil {
 					result = serveMapped(mResult)
-					mapResponseOps = mResult.Response
+					ruleResponseOps = mResult.Response
 					break mapLoop
 				}
 			}
@@ -257,9 +258,9 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		}
 	}
 
-	// Step 7: apply map/map-local response ops after global response rules.
-	if mapResponseOps != nil {
-		mapResponseOps.Apply(result.Headers)
+	// Step 7: apply matched redirect/map/map-local response ops after global response rules.
+	if ruleResponseOps != nil {
+		ruleResponseOps.Apply(result.Headers)
 	}
 
 	// Dump response headers after all transforms.

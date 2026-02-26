@@ -253,6 +253,58 @@ func TestPipeline_Redirect_DefaultStatusAndSkipsUpstream(t *testing.T) {
 	}
 }
 
+func TestPipeline_RedirectResponseOps_AfterGlobalResponse(t *testing.T) {
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "header",
+			Match: config.RawMatch{Host: `^example\.com$`, Path: `^/old/`},
+			Response: &config.RawOps{
+				Set: []config.RawSetOp{
+					{Name: "X-Order", Mode: "replace", Value: "global"},
+					{Name: "X-Global", Mode: "replace", Value: "1"},
+				},
+			},
+		},
+		{
+			Type:       "redirect",
+			Match:      config.RawMatch{Host: `^example\.com$`, Path: `^/old/`},
+			Search:     "/old/",
+			SearchMode: "literal",
+			Replace:    "/new/",
+			Response: &config.RawOps{
+				Set: []config.RawSetOp{
+					{Name: "X-Order", Mode: "replace", Value: "rule"},
+					{Name: "X-Redirect", Mode: "replace", Value: "1"},
+				},
+			},
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+	result, err := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "https", Host: "example.com",
+		Method: "GET", Path: "/old/item", Header: make(http.Header),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got, want := result.Status, http.StatusFound; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+	if got, want := result.Headers.Get("Location"), "https://example.com/new/item"; got != want {
+		t.Fatalf("location: got %q, want %q", got, want)
+	}
+	if got, want := result.Headers.Get("X-Order"), "rule"; got != want {
+		t.Fatalf("X-Order: got %q, want %q", got, want)
+	}
+	if got, want := result.Headers.Get("X-Global"), "1"; got != want {
+		t.Fatalf("X-Global: got %q, want %q", got, want)
+	}
+	if got, want := result.Headers.Get("X-Redirect"), "1"; got != want {
+		t.Fatalf("X-Redirect: got %q, want %q", got, want)
+	}
+}
+
 func TestPipeline_Redirect_PrecedesMap(t *testing.T) {
 	rs := makeRuleSet(t, []config.RawRule{
 		{
