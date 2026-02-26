@@ -182,6 +182,8 @@ rules: []                    # ordered list of rules
 
 Rules are evaluated in file order. All matching header rules apply to every request/response. `redirect`, `map`/`map_local`, and `map_remote` use first-match-wins in their stages. Matching `body_replace` rules are applied in file order.
 
+All rule types support optional `enabled: false`. If omitted, rules are enabled by default.
+
 ### Pipeline order (per request)
 
 1. Apply matching **request** header rules (delete then set)

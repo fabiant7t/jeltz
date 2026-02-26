@@ -272,6 +272,40 @@ func TestLoad_InvalidEnvBool(t *testing.T) {
 	}
 }
 
+func TestLoad_RulesEnabledField(t *testing.T) {
+	tmp := t.TempDir()
+	p := writeConfig(t, tmp, `
+version: 1
+rules:
+  - type: header
+    match:
+      host: ".*"
+      path: ".*"
+  - type: header
+    enabled: false
+    match:
+      host: ".*"
+      path: ".*"
+`)
+
+	cfg, err := config.Load(p, tmp, tmp, config.CLIOverrides{})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got, want := len(cfg.Rules), 2; got != want {
+		t.Fatalf("rules len: got %d, want %d", got, want)
+	}
+	if cfg.Rules[0].Enabled != nil {
+		t.Fatalf("rules[0].enabled: got non-nil, want nil (default true)")
+	}
+	if cfg.Rules[1].Enabled == nil {
+		t.Fatal("rules[1].enabled: got nil, want non-nil false")
+	}
+	if *cfg.Rules[1].Enabled {
+		t.Fatal("rules[1].enabled: got true, want false")
+	}
+}
+
 func TestLoad_RuleSources_AppendedAfterInlineAndRecursive(t *testing.T) {
 	tmp := t.TempDir()
 	rulesDir := filepath.Join(tmp, "rules")

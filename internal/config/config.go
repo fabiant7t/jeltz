@@ -34,6 +34,7 @@ type Config struct {
 // RawRule holds a single rule as-loaded from YAML before type-specific parsing.
 type RawRule struct {
 	Type        string   `yaml:"type"`
+	Enabled     *bool    `yaml:"enabled,omitempty"`
 	Match       RawMatch `yaml:"match"`
 	Path        string   `yaml:"path,omitempty"`
 	URL         string   `yaml:"url,omitempty"`

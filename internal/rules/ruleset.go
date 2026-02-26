@@ -47,6 +47,10 @@ type RuleSet struct {
 func Compile(rawRules []config.RawRule, basePath string) (*RuleSet, error) {
 	rs := &RuleSet{}
 	for i, raw := range rawRules {
+		if raw.Enabled != nil && !*raw.Enabled {
+			continue
+		}
+
 		switch raw.Type {
 		case string(RuleTypeHeader):
 			hr, err := compileHeaderRule(raw)
