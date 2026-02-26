@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/fabiant7t/jeltz/internal/config"
@@ -15,6 +16,16 @@ func writeConfig(t *testing.T, dir, content string) string {
 		t.Fatalf("write config: %v", err)
 	}
 	return p
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write file %s: %v", path, err)
+	}
 }
 
 func TestLoad_NoFile(t *testing.T) {
@@ -258,5 +269,135 @@ func TestLoad_InvalidEnvBool(t *testing.T) {
 
 	if _, err := config.Load("", tmp, tmp, config.CLIOverrides{}); err == nil {
 		t.Fatal("expected error for invalid env bool")
+	}
+}
+
+func TestLoad_RuleSources_AppendedAfterInlineAndRecursive(t *testing.T) {
+	tmp := t.TempDir()
+	rulesDir := filepath.Join(tmp, "rules")
+
+	writeFile(t, filepath.Join(rulesDir, "a.yaml"), `
+rules:
+  - type: map_local
+    match:
+      host: ".*"
+      path: "^/a"
+    path: "mocks/a.txt"
+`)
+	writeFile(t, filepath.Join(rulesDir, "nested", "b.yml"), `
+- type: body_replace
+  match:
+    host: ".*"
+    path: "^/b"
+  search: "x"
+  replace: "y"
+`)
+
+	p := writeConfig(t, tmp, `
+version: 1
+rule_sources:
+  - "rules"
+rules:
+  - type: header
+    match:
+      host: ".*"
+      path: "^/inline"
+`)
+
+	cfg, err := config.Load(p, tmp, tmp, config.CLIOverrides{})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got, want := len(cfg.Rules), 3; got != want {
+		t.Fatalf("rules len: got %d, want %d", got, want)
+	}
+	if cfg.Rules[0].Type != "header" {
+		t.Fatalf("rules[0].type: got %q, want header", cfg.Rules[0].Type)
+	}
+	if cfg.Rules[1].Type != "map_local" {
+		t.Fatalf("rules[1].type: got %q, want map_local", cfg.Rules[1].Type)
+	}
+	if cfg.Rules[2].Type != "body_replace" {
+		t.Fatalf("rules[2].type: got %q, want body_replace", cfg.Rules[2].Type)
+	}
+}
+
+func TestLoad_RuleSources_MissingPath(t *testing.T) {
+	tmp := t.TempDir()
+	p := writeConfig(t, tmp, `
+version: 1
+rule_sources:
+  - "rules-does-not-exist"
+`)
+
+	if _, err := config.Load(p, tmp, tmp, config.CLIOverrides{}); err == nil {
+		t.Fatal("expected error for missing rule source path")
+	}
+}
+
+func TestLoad_RuleSources_InvalidRuleFile(t *testing.T) {
+	tmp := t.TempDir()
+	writeFile(t, filepath.Join(tmp, "rules", "bad.yaml"), `
+rules:
+  - type: header
+    match:
+      host: ".*"
+      path: "^/x"
+    unknown_field: true
+`)
+
+	p := writeConfig(t, tmp, `
+version: 1
+rule_sources:
+  - "rules"
+`)
+
+	if _, err := config.Load(p, tmp, tmp, config.CLIOverrides{}); err == nil {
+		t.Fatal("expected error for invalid rule source file")
+	} else {
+		if !strings.Contains(err.Error(), "bad.yaml") {
+			t.Fatalf("error should include file path, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "unknown_field") {
+			t.Fatalf("error should include invalid field, got: %v", err)
+		}
+	}
+}
+
+func TestLoad_RuleSources_TopLevelMappingMustContainRules(t *testing.T) {
+	tmp := t.TempDir()
+	writeFile(t, filepath.Join(tmp, "rules", "bad-shape.yaml"), `
+foo: []
+`)
+
+	p := writeConfig(t, tmp, `
+version: 1
+rule_sources:
+  - "rules"
+`)
+
+	if _, err := config.Load(p, tmp, tmp, config.CLIOverrides{}); err == nil {
+		t.Fatal("expected error for invalid top-level rule source shape")
+	} else {
+		if !strings.Contains(err.Error(), "bad-shape.yaml") {
+			t.Fatalf("error should include file path, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "expected only \"rules\"") {
+			t.Fatalf("error should include shape hint, got: %v", err)
+		}
+	}
+}
+
+func TestLoad_ConfigValidationErrorIncludesConfigPath(t *testing.T) {
+	tmp := t.TempDir()
+	p := writeConfig(t, tmp, `
+version: 1
+listen: [not-a-string]
+`)
+
+	if _, err := config.Load(p, tmp, tmp, config.CLIOverrides{}); err == nil {
+		t.Fatal("expected validation error")
+	} else if !strings.Contains(err.Error(), p) {
+		t.Fatalf("error should include config path %q, got: %v", p, err)
 	}
 }

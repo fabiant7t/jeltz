@@ -2,6 +2,7 @@ package proxy_test
 
 import (
 	"bytes"
+	"encoding/base64"
 	"io"
 	"log/slog"
 	"net"
@@ -573,6 +574,125 @@ func TestPipeline_BodyReplace_AppliesToMapLocal(t *testing.T) {
 	localBody, _ := io.ReadAll(localResult.Body)
 	if got, want := string(localBody), "bar map"; got != want {
 		t.Fatalf("/local body: got %q, want %q", got, want)
+	}
+}
+
+func TestPipeline_Map_InlineBody(t *testing.T) {
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "map",
+			Match: config.RawMatch{Host: `^example\.com$`, Path: `^/health$`},
+			Body:  `{"ok":true}`,
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+	result, err := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "https", Host: "example.com",
+		Method: "GET", Path: "/health", Header: make(http.Header),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got, want := result.Status, http.StatusOK; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if got, want := string(body), `{"ok":true}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+	if got, want := result.Headers.Get("Content-Length"), "11"; got != want {
+		t.Fatalf("Content-Length: got %q, want %q", got, want)
+	}
+}
+
+func TestPipeline_Map_Base64BodyBinary(t *testing.T) {
+	payload := []byte{0x00, 0x01, 0x02, 0xff}
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:        "map",
+			Match:       config.RawMatch{Host: `^example\.com$`, Path: `^/bin$`},
+			BodyBase64:  base64.StdEncoding.EncodeToString(payload),
+			ContentType: "application/octet-stream",
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+	result, err := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "https", Host: "example.com",
+		Method: "GET", Path: "/bin", Header: make(http.Header),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !bytes.Equal(body, payload) {
+		t.Fatalf("binary body mismatch: got %v, want %v", body, payload)
+	}
+	if got, want := result.Headers.Get("Content-Type"), "application/octet-stream"; got != want {
+		t.Fatalf("Content-Type: got %q, want %q", got, want)
+	}
+}
+
+func TestPipeline_MapAndMapLocal_RespectConfigOrder(t *testing.T) {
+	dir := t.TempDir()
+	localFile := filepath.Join(dir, "local.txt")
+	if err := os.WriteFile(localFile, []byte("local"), 0o644); err != nil {
+		t.Fatalf("write local file: %v", err)
+	}
+
+	rsInlineFirst := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "map",
+			Match: config.RawMatch{Host: `^example\.com$`, Path: `^/same$`},
+			Body:  "inline",
+		},
+		{
+			Type:  "map_local",
+			Match: config.RawMatch{Host: `^example\.com$`, Path: `^/same$`},
+			Path:  localFile,
+		},
+	}, dir)
+	resultInlineFirst, err := proxy.NewPipeline(rsInlineFirst, false).Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "https", Host: "example.com",
+		Method: "GET", Path: "/same", Header: make(http.Header),
+	})
+	if err != nil {
+		t.Fatalf("Run inline-first: %v", err)
+	}
+	bodyInlineFirst, _ := io.ReadAll(resultInlineFirst.Body)
+	if got, want := string(bodyInlineFirst), "inline"; got != want {
+		t.Fatalf("inline-first body: got %q, want %q", got, want)
+	}
+
+	rsLocalFirst := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "map_local",
+			Match: config.RawMatch{Host: `^example\.com$`, Path: `^/same$`},
+			Path:  localFile,
+		},
+		{
+			Type:  "map",
+			Match: config.RawMatch{Host: `^example\.com$`, Path: `^/same$`},
+			Body:  "inline",
+		},
+	}, dir)
+	resultLocalFirst, err := proxy.NewPipeline(rsLocalFirst, false).Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "https", Host: "example.com",
+		Method: "GET", Path: "/same", Header: make(http.Header),
+	})
+	if err != nil {
+		t.Fatalf("Run local-first: %v", err)
+	}
+	bodyLocalFirst, _ := io.ReadAll(resultLocalFirst.Body)
+	if got, want := string(bodyLocalFirst), "local"; got != want {
+		t.Fatalf("local-first body: got %q, want %q", got, want)
 	}
 }
 

@@ -27,6 +27,7 @@ type Config struct {
 	UpstreamTLSHandshakeTimeoutMS   int64
 	UpstreamResponseHeaderTimeoutMS int64
 	UpstreamIdleConnTimeoutMS       int64
+	RuleSources                     []string
 	Rules                           []RawRule
 }
 
@@ -36,6 +37,8 @@ type RawRule struct {
 	Match       RawMatch `yaml:"match"`
 	Path        string   `yaml:"path,omitempty"`
 	URL         string   `yaml:"url,omitempty"`
+	Body        string   `yaml:"body,omitempty"`
+	BodyBase64  string   `yaml:"body_base64,omitempty"`
 	IndexFile   string   `yaml:"index_file,omitempty"`
 	StatusCode  int      `yaml:"status_code,omitempty"`
 	ContentType string   `yaml:"content_type,omitempty"`
@@ -87,6 +90,7 @@ type yamlConfig struct {
 	UpstreamTLSHandshakeTimeoutMS   *int64    `yaml:"upstream_tls_handshake_timeout_ms"`
 	UpstreamResponseHeaderTimeoutMS *int64    `yaml:"upstream_response_header_timeout_ms"`
 	UpstreamIdleConnTimeoutMS       *int64    `yaml:"upstream_idle_conn_timeout_ms"`
+	RuleSources                     []string  `yaml:"rule_sources"`
 	Rules                           []RawRule `yaml:"rules"`
 }
 
@@ -140,18 +144,26 @@ func Load(configFile, xdgCfg, xdgData string, cli CLIOverrides) (*Config, error)
 		var readErr error
 		rawYAML, readErr = os.ReadFile(configFile)
 		if readErr != nil {
-			return nil, fmt.Errorf("reading config file: %w", readErr)
+			return nil, fmt.Errorf("reading config file %q: %w", configFile, readErr)
 		}
 		dec := yaml.NewDecoder(bytes.NewReader(rawYAML))
 		dec.KnownFields(true)
 		if err := dec.Decode(&yc); err != nil {
-			return nil, fmt.Errorf("config validation: %w", err)
+			return nil, fmt.Errorf("config validation in %q: %w", configFile, err)
 		}
 		if yc.Version != Version {
 			return nil, fmt.Errorf("config version must be %d, got %d", Version, yc.Version)
 		}
 		applyFileConfig(cfg, yc)
 		cfg.Rules = yc.Rules
+		if len(yc.RuleSources) > 0 {
+			importedRules, importErr := loadRulesFromSources(yc.RuleSources, filepath.Dir(configFile))
+			if importErr != nil {
+				return nil, fmt.Errorf("loading rule_sources: %w", importErr)
+			}
+			// Imported rule files are appended after inline rules from config.yaml.
+			cfg.Rules = append(cfg.Rules, importedRules...)
+		}
 	}
 
 	// Apply CLI overrides (highest precedence).
@@ -233,6 +245,9 @@ func applyFileConfig(cfg *Config, yc yamlConfig) {
 	}
 	if yc.UpstreamIdleConnTimeoutMS != nil {
 		cfg.UpstreamIdleConnTimeoutMS = *yc.UpstreamIdleConnTimeoutMS
+	}
+	if yc.RuleSources != nil {
+		cfg.RuleSources = append([]string(nil), yc.RuleSources...)
 	}
 }
 

@@ -16,6 +16,7 @@ HTTP/2 is fully supported on the client-to-proxy leg of HTTPS connections. The c
 
 **Use cases:**
 - Serve local mock files instead of real upstream responses (`map_local`)
+- Serve inline mock payloads directly from config (`map`)
 - Remap requests to a different remote upstream (`map_remote`)
 - Inject, replace, or strip request and response headers
 - Search/replace response body payloads (`body_replace`)
@@ -143,6 +144,7 @@ version: 1
 listen: "127.0.0.1:8080"    # proxy listen address
 base_path: "."               # base for relative rule paths; "." = config dir
 data_dir: ""                 # CA/cert storage; empty = XDG data dir
+rule_sources: []             # optional external rule files/dirs/globs (loaded after inline rules)
 insecure_upstream: false     # skip TLS verification upstream
 dump_traffic: false          # log headers + body snippets
 max_body_bytes: 1048576      # body dump limit in bytes
@@ -161,21 +163,33 @@ rules: []                    # ordered list of rules
 - `base_path` absolute → used as-is (less portable)
 - Rule `path` values that are relative are resolved against `base_path`
 
+### Rule sources
+
+- `rule_sources` entries can be:
+  - a YAML file (`.yaml`/`.yml`)
+  - a directory (loaded recursively for `.yaml`/`.yml`)
+  - a glob pattern (for example `rules/**/*.yaml`)
+- Relative paths are resolved from the directory containing `config.yaml`.
+- Loaded rules are appended **after** inline `rules` from `config.yaml`.
+- Rule source files may be either:
+  - top-level `rules: [...]`
+  - top-level sequence `[...]`
+
 ---
 
 ## Rules
 
-Rules are evaluated in file order. All matching header rules apply to every request/response. `map_local` and `map_remote` use first-match-wins in their stages. Matching `body_replace` rules are applied in file order.
+Rules are evaluated in file order. All matching header rules apply to every request/response. `map`/`map_local` and `map_remote` use first-match-wins in their stages. Matching `body_replace` rules are applied in file order.
 
 ### Pipeline order (per request)
 
 1. Apply matching **request** header rules (delete then set)
-2. Check `map_local` rules (first match wins)
-3. If no `map_local` matched, check `map_remote` rules (first match wins)
+2. Check `map`/`map_local` rules in file order (first match wins)
+3. If no local map matched, check `map_remote` rules (first match wins)
 4. Proxy to upstream (original or remapped)
 5. Apply matching **body_replace** rules (replace-all, in file order)
 6. Apply matching **response** header rules (delete then set)
-7. Apply `map_local` rule's own `response` ops (after global response rules)
+7. Apply matched `map`/`map_local` rule's own `response` ops (after global response rules)
 
 ---
 
@@ -257,6 +271,42 @@ Content-Type is determined by: explicit `content_type` → file extension → `C
 
 ---
 
+### Rule: `map`
+
+Serve a response body directly from the rule YAML instead of proxying upstream.
+
+```yaml
+- type: map
+  match:
+    methods: ["GET"]
+    host: "^api\\.example\\.com$"
+    path: "^/v1/health$"
+  status_code: 200
+  content_type: "application/json"
+  body: |
+    {"ok":true}
+  response:
+    set:
+      - name: "Cache-Control"
+        mode: replace
+        value: "no-store"
+```
+
+Binary payloads are supported via `body_base64`:
+
+```yaml
+- type: map
+  match:
+    host: "^example\\.com$"
+    path: "^/asset.bin$"
+  content_type: "application/octet-stream"
+  body_base64: "AAEC/w=="
+```
+
+Exactly one of `body` or `body_base64` must be provided.
+
+---
+
 ### Rule: `map_remote`
 
 Proxy matching requests to a different remote upstream URL.
@@ -308,6 +358,8 @@ Search/replace response body payload content for matching traffic.
 version: 1
 listen: "127.0.0.1:8080"
 base_path: "."
+rule_sources:
+  - "rules/**/*.yaml"
 insecure_upstream: false
 upstream_dial_timeout_ms: 10000
 upstream_tls_handshake_timeout_ms: 10000
@@ -353,6 +405,17 @@ rules:
         - name: "Cache-Control"
           mode: replace
           value: "no-store"
+
+  # Return a fast inline health response without hitting upstream
+  - type: map
+    match:
+      methods: ["GET"]
+      host: "^api\\.example\\.com$"
+      path: "^/v1/health$"
+    status_code: 200
+    content_type: "application/json"
+    body: |
+      {"ok":true}
 
   # Always return a fixed JSON fixture for one endpoint
   - type: map_local

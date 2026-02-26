@@ -148,29 +148,43 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		dumpHeaders(fc.Logger, "request", fc.Header)
 	}
 
-	// Step 3: choose request routing — map-local first-match, else optional
-	// map-remote destination remap, then upstream.
+	// Step 3: choose request routing — map/map-local first-match in file order,
+	// else optional map-remote destination remap, then upstream.
 	var result *ResponseResult
-	var mapLocalOps *rules.Ops
+	var mapResponseOps *rules.Ops
 	var mapRemoteTarget *rules.MapRemoteTarget
 
 	if p.ruleset != nil {
-		for _, ml := range p.ruleset.MapLocal {
-			mlResult, err := ml.Resolve(fm)
-			if err != nil {
-				if rules.IsTraversal(err) {
-					return emptyResult(http.StatusForbidden, "local"), nil
-				}
-				return nil, fmt.Errorf("map-local resolve: %w", err)
-			}
-			if mlResult != nil {
-				r, err := serveLocal(mlResult)
+	mapLoop:
+		for _, mapped := range p.ruleset.Mapped {
+			if mapped.MapLocal != nil {
+				mlResult, err := mapped.MapLocal.Resolve(fm)
 				if err != nil {
-					return nil, err
+					if rules.IsTraversal(err) {
+						return emptyResult(http.StatusForbidden, "local"), nil
+					}
+					return nil, fmt.Errorf("map-local resolve: %w", err)
 				}
-				mapLocalOps = mlResult.Response
-				result = r
-				break
+				if mlResult != nil {
+					r, err := serveLocal(mlResult)
+					if err != nil {
+						return nil, err
+					}
+					mapResponseOps = mlResult.Response
+					result = r
+					break mapLoop
+				}
+			}
+			if mapped.Map != nil {
+				mResult, err := mapped.Map.Resolve(fm)
+				if err != nil {
+					return nil, fmt.Errorf("map resolve: %w", err)
+				}
+				if mResult != nil {
+					result = serveMapped(mResult)
+					mapResponseOps = mResult.Response
+					break mapLoop
+				}
 			}
 		}
 
@@ -230,9 +244,9 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		}
 	}
 
-	// Step 6: apply map-local response ops after global response rules.
-	if mapLocalOps != nil {
-		mapLocalOps.Apply(result.Headers)
+	// Step 6: apply map/map-local response ops after global response rules.
+	if mapResponseOps != nil {
+		mapResponseOps.Apply(result.Headers)
 	}
 
 	// Dump response headers after all transforms.
@@ -267,6 +281,24 @@ func emptyResult(status int, source string) *ResponseResult {
 		Headers: make(http.Header),
 		Body:    io.NopCloser(bytes.NewReader(nil)),
 		Source:  source,
+	}
+}
+
+// serveMapped builds a ResponseResult from an inline map rule result.
+func serveMapped(mr *rules.MapResult) *ResponseResult {
+	ct := mr.ContentType
+	if ct == "" {
+		ct = http.DetectContentType(mr.Body)
+	}
+	h := make(http.Header)
+	h.Set("Content-Type", ct)
+	h.Set("Content-Length", strconv.Itoa(len(mr.Body)))
+
+	return &ResponseResult{
+		Status:  mr.StatusCode,
+		Headers: h,
+		Body:    io.NopCloser(bytes.NewReader(mr.Body)),
+		Source:  "local",
 	}
 }
 

@@ -11,6 +11,7 @@ type RuleType string
 
 const (
 	RuleTypeHeader      RuleType = "header"
+	RuleTypeMap         RuleType = "map"
 	RuleTypeMapLocal    RuleType = "map_local"
 	RuleTypeMapRemote   RuleType = "map_remote"
 	RuleTypeBodyReplace RuleType = "body_replace"
@@ -23,9 +24,17 @@ type HeaderRule struct {
 	Response *Ops
 }
 
+// MappedRule is a map-stage rule variant in original config file order.
+type MappedRule struct {
+	Map      *MapRule
+	MapLocal *MapLocalRule
+}
+
 // RuleSet holds all compiled rules in file order.
 type RuleSet struct {
 	Headers     []*HeaderRule
+	Mapped      []*MappedRule
+	Map         []*MapRule
 	MapLocal    []*MapLocalRule
 	MapRemote   []*MapRemoteRule
 	BodyReplace []*BodyReplaceRule
@@ -43,12 +52,20 @@ func Compile(rawRules []config.RawRule, basePath string) (*RuleSet, error) {
 				return nil, fmt.Errorf("rules[%d] (header): %w", i, err)
 			}
 			rs.Headers = append(rs.Headers, hr)
+		case string(RuleTypeMap):
+			mr, err := CompileMapRule(raw)
+			if err != nil {
+				return nil, fmt.Errorf("rules[%d] (map): %w", i, err)
+			}
+			rs.Map = append(rs.Map, mr)
+			rs.Mapped = append(rs.Mapped, &MappedRule{Map: mr})
 		case string(RuleTypeMapLocal):
 			ml, err := CompileMapLocalRule(raw, basePath)
 			if err != nil {
 				return nil, fmt.Errorf("rules[%d] (map_local path %q): %w", i, raw.Path, err)
 			}
 			rs.MapLocal = append(rs.MapLocal, ml)
+			rs.Mapped = append(rs.Mapped, &MappedRule{MapLocal: ml})
 		case string(RuleTypeMapRemote):
 			mr, err := CompileMapRemoteRule(raw)
 			if err != nil {
