@@ -148,13 +148,27 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		dumpHeaders(fc.Logger, "request", fc.Header)
 	}
 
-	// Step 3: choose request routing — map/map-local first-match in file order,
-	// else optional map-remote destination remap, then upstream.
+	// Step 3: apply matching redirect rules (first match wins).
 	var result *ResponseResult
 	var mapResponseOps *rules.Ops
 	var mapRemoteTarget *rules.MapRemoteTarget
-
 	if p.ruleset != nil {
+		requestContentType := fc.Header.Get("Content-Type")
+		for _, rr := range p.ruleset.Redirect {
+			redirect, err := rr.Resolve(fm, requestContentType)
+			if err != nil {
+				return nil, fmt.Errorf("redirect resolve: %w", err)
+			}
+			if redirect != nil {
+				result = serveRedirect(redirect)
+				break
+			}
+		}
+	}
+
+	// Step 4: choose request routing — map/map-local first-match in file order,
+	// else optional map-remote destination remap, then upstream.
+	if p.ruleset != nil && result == nil {
 	mapLoop:
 		for _, mapped := range p.ruleset.Mapped {
 			if mapped.MapLocal != nil {
@@ -210,7 +224,7 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		}
 	}
 
-	// Step 4: apply matching body_replace rules in file order.
+	// Step 5: apply matching body_replace rules in file order.
 	if p.ruleset != nil && len(p.ruleset.BodyReplace) > 0 && result.Body != nil &&
 		isIdentityContentEncoding(result.Headers.Values("Content-Encoding")) {
 		contentType := result.Headers.Get("Content-Type")
@@ -235,7 +249,7 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		}
 	}
 
-	// Step 5: apply matching response header rules.
+	// Step 6: apply matching response header rules.
 	if p.ruleset != nil {
 		for _, hr := range p.ruleset.Headers {
 			if hr.Match.Matches(fm) {
@@ -244,7 +258,7 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		}
 	}
 
-	// Step 6: apply map/map-local response ops after global response rules.
+	// Step 7: apply map/map-local response ops after global response rules.
 	if mapResponseOps != nil {
 		mapResponseOps.Apply(result.Headers)
 	}
@@ -298,6 +312,20 @@ func serveMapped(mr *rules.MapResult) *ResponseResult {
 		Status:  mr.StatusCode,
 		Headers: h,
 		Body:    io.NopCloser(bytes.NewReader(mr.Body)),
+		Source:  "local",
+	}
+}
+
+// serveRedirect builds a ResponseResult from a redirect rule result.
+func serveRedirect(rr *rules.RedirectResult) *ResponseResult {
+	h := make(http.Header)
+	h.Set("Location", rr.Location)
+	h.Set("Content-Length", "0")
+
+	return &ResponseResult{
+		Status:  rr.StatusCode,
+		Headers: h,
+		Body:    io.NopCloser(bytes.NewReader(nil)),
 		Source:  "local",
 	}
 }

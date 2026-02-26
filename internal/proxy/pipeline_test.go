@@ -210,6 +210,144 @@ func TestPipeline_RequestHeaderTransform_Upstream(t *testing.T) {
 	}
 }
 
+func TestPipeline_Redirect_DefaultStatusAndSkipsUpstream(t *testing.T) {
+	var hit int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&hit, 1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("upstream"))
+	}))
+	defer upstream.Close()
+
+	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:       "redirect",
+			Match:      config.RawMatch{Host: "^" + host + "$", Path: `^/old/`},
+			Search:     "/old/",
+			SearchMode: "literal",
+			Replace:    "/new/",
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+	result, runErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "GET", Path: "/old/item", RawQuery: "q=1", Header: make(http.Header),
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	if got, want := result.Status, http.StatusFound; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+	if got, want := result.Headers.Get("Location"), "http://"+host+":"+port+"/new/item?q=1"; got != want {
+		t.Fatalf("location: got %q, want %q", got, want)
+	}
+	if got := atomic.LoadInt32(&hit); got != 0 {
+		t.Fatalf("upstream should not be called, hit=%d", got)
+	}
+}
+
+func TestPipeline_Redirect_ContentTypeFilter(t *testing.T) {
+	var hit int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&hit, 1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("upstream"))
+	}))
+	defer upstream.Close()
+
+	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:        "redirect",
+			Match:       config.RawMatch{Host: "^" + host + "$", Path: `^/submit$`},
+			Search:      "/submit",
+			SearchMode:  "literal",
+			Replace:     "/other",
+			ContentType: `^application/json`,
+			StatusCode:  http.StatusTemporaryRedirect,
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+
+	noRedirectResult, noRedirectErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "POST", Path: "/submit",
+		Header: http.Header{"Content-Type": []string{"text/plain"}},
+	})
+	if noRedirectErr != nil {
+		t.Fatalf("Run no-redirect: %v", noRedirectErr)
+	}
+	if got, want := noRedirectResult.Status, http.StatusOK; got != want {
+		t.Fatalf("status no-redirect: got %d, want %d", got, want)
+	}
+	if got := atomic.LoadInt32(&hit); got != 1 {
+		t.Fatalf("upstream hits after no-redirect: got %d, want 1", got)
+	}
+
+	redirectResult, redirectErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "POST", Path: "/submit",
+		Header: http.Header{"Content-Type": []string{"application/json; charset=utf-8"}},
+	})
+	if redirectErr != nil {
+		t.Fatalf("Run redirect: %v", redirectErr)
+	}
+	if got, want := redirectResult.Status, http.StatusTemporaryRedirect; got != want {
+		t.Fatalf("status redirect: got %d, want %d", got, want)
+	}
+	if got, want := redirectResult.Headers.Get("Location"), "http://"+host+":"+port+"/other"; got != want {
+		t.Fatalf("location redirect: got %q, want %q", got, want)
+	}
+	if got := atomic.LoadInt32(&hit); got != 1 {
+		t.Fatalf("upstream should not be called for redirect, hit=%d", got)
+	}
+}
+
+func TestPipeline_Redirect_PrecedesMap(t *testing.T) {
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "map",
+			Match: config.RawMatch{Host: `^example\.com$`, Path: `^/same$`},
+			Body:  "mapped",
+		},
+		{
+			Type:       "redirect",
+			Match:      config.RawMatch{Host: `^example\.com$`, Path: `^/same$`},
+			Search:     "/same",
+			SearchMode: "literal",
+			Replace:    "/else",
+			StatusCode: http.StatusMovedPermanently,
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+	result, err := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "https", Host: "example.com",
+		Method: "GET", Path: "/same", Header: make(http.Header),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got, want := result.Status, http.StatusMovedPermanently; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+	if got, want := result.Headers.Get("Location"), "https://example.com/else"; got != want {
+		t.Fatalf("location: got %q, want %q", got, want)
+	}
+}
+
 func TestPipeline_UpstreamResponseHeaderTimeoutReturns502(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

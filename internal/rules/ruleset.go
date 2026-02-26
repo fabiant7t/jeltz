@@ -11,6 +11,7 @@ type RuleType string
 
 const (
 	RuleTypeHeader      RuleType = "header"
+	RuleTypeRedirect    RuleType = "redirect"
 	RuleTypeMap         RuleType = "map"
 	RuleTypeMapLocal    RuleType = "map_local"
 	RuleTypeMapRemote   RuleType = "map_remote"
@@ -33,6 +34,7 @@ type MappedRule struct {
 // RuleSet holds all compiled rules in file order.
 type RuleSet struct {
 	Headers     []*HeaderRule
+	Redirect    []*RedirectRule
 	Mapped      []*MappedRule
 	Map         []*MapRule
 	MapLocal    []*MapLocalRule
@@ -52,6 +54,12 @@ func Compile(rawRules []config.RawRule, basePath string) (*RuleSet, error) {
 				return nil, fmt.Errorf("rules[%d] (header): %w", i, err)
 			}
 			rs.Headers = append(rs.Headers, hr)
+		case string(RuleTypeRedirect):
+			rr, err := CompileRedirectRule(raw)
+			if err != nil {
+				return nil, fmt.Errorf("rules[%d] (redirect): %w", i, err)
+			}
+			rs.Redirect = append(rs.Redirect, rr)
 		case string(RuleTypeMap):
 			mr, err := CompileMapRule(raw)
 			if err != nil {
