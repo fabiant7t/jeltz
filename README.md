@@ -16,6 +16,7 @@ HTTP/2 is fully supported on the client-to-proxy leg of HTTPS connections. The c
 
 **Use cases:**
 - Serve local mock files instead of real upstream responses (`map_local`)
+- Remap requests to a different remote upstream (`map_remote`)
 - Inject, replace, or strip request and response headers
 - Search/replace response body payloads (`body_replace`)
 - Strip tracking cookies, GDPR consent headers, etc.
@@ -164,15 +165,17 @@ rules: []                    # ordered list of rules
 
 ## Rules
 
-Rules are evaluated in file order. All matching header rules apply to every request/response. For `map_local`, the first matching rule wins. Matching `body_replace` rules are applied in file order.
+Rules are evaluated in file order. All matching header rules apply to every request/response. `map_local` and `map_remote` use first-match-wins in their stages. Matching `body_replace` rules are applied in file order.
 
 ### Pipeline order (per request)
 
 1. Apply matching **request** header rules (delete then set)
-2. Check `map_local` rules (first match wins) — or proxy to upstream
-3. Apply matching **body_replace** rules (replace-all, in file order)
-4. Apply matching **response** header rules (delete then set)
-5. Apply `map_local` rule's own `response` ops (after global response rules)
+2. Check `map_local` rules (first match wins)
+3. If no `map_local` matched, check `map_remote` rules (first match wins)
+4. Proxy to upstream (original or remapped)
+5. Apply matching **body_replace** rules (replace-all, in file order)
+6. Apply matching **response** header rules (delete then set)
+7. Apply `map_local` rule's own `response` ops (after global response rules)
 
 ---
 
@@ -251,6 +254,27 @@ If `path` points to a file, that file is always served regardless of the URL pat
 Content-Type is determined by: explicit `content_type` → file extension → `Content-Type` sniffing → `application/octet-stream`.
 
 `map_local` responses are streamed from disk; files are not fully buffered in memory before being sent.
+
+---
+
+### Rule: `map_remote`
+
+Proxy matching requests to a different remote upstream URL.
+
+```yaml
+- type: map_remote
+  match:
+    methods: ["GET", "POST"]
+    host: "^api\\.example\\.com$"
+    path: "^/v1/"           # MUST start with ^
+  url: "https://staging-api.example.net/mirror/?env=dev"
+```
+
+Behavior:
+- `url` must be an absolute URL with scheme and host.
+- Prefix stripping mirrors `map_local`: with `path: ^/v1/`, request `/v1/users` maps to `/mirror/users`.
+- Original request query is preserved and appended after the mapped URL query.
+- `map_local` takes precedence if both `map_local` and `map_remote` match.
 
 ---
 
@@ -339,6 +363,14 @@ rules:
     path: "mocks/features.json"
     content_type: "application/json"
 
+  # Route selected API calls to a remote staging backend
+  - type: map_remote
+    match:
+      methods: ["GET", "POST"]
+      host: "^api\\.example\\.com$"
+      path: "^/v1/"
+    url: "https://staging-api.example.net/mirror/?env=dev"
+
   # Rewrite an API field in JSON responses
   - type: body_replace
     match:
@@ -400,4 +432,3 @@ Locations follow the [XDG Base Directory Specification](https://specifications.f
 - No WebSocket support.
 - No transparent/intercepting proxy (requires iptables/TPROXY).
 - No web UI.
-- `map_remote` rule type is not implemented (the config model anticipates it).

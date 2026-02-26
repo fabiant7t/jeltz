@@ -576,6 +576,113 @@ func TestPipeline_BodyReplace_AppliesToMapLocal(t *testing.T) {
 	}
 }
 
+func TestPipeline_MapRemote_ReroutesUpstreamRequest(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("origin"))
+	}))
+	defer origin.Close()
+
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.URL.Path, "/mirror/v1/items"; got != want {
+			t.Fatalf("path: got %q, want %q", got, want)
+		}
+		if got, want := r.URL.RawQuery, "env=dev&q=1"; got != want {
+			t.Fatalf("raw query: got %q, want %q", got, want)
+		}
+		_, _ = w.Write([]byte("remote"))
+	}))
+	defer remote.Close()
+
+	originHost, originPort, err := net.SplitHostPort(origin.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split origin host port: %v", err)
+	}
+	remoteHostPort := remote.Listener.Addr().String()
+
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "map_remote",
+			Match: config.RawMatch{Host: "^" + originHost + "$", Path: `^/api/`},
+			URL:   "http://" + remoteHostPort + "/mirror/?env=dev",
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+	result, runErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: originHost, Port: originPort,
+		Method: "GET", Path: "/api/v1/items", RawQuery: "q=1", Header: make(http.Header),
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	if result.Status != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", result.Status, http.StatusOK)
+	}
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if got, want := string(body), "remote"; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+}
+
+func TestPipeline_MapLocal_PrecedesMapRemote(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("origin"))
+	}))
+	defer origin.Close()
+
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("remote"))
+	}))
+	defer remote.Close()
+
+	originHost, originPort, err := net.SplitHostPort(origin.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split origin host port: %v", err)
+	}
+	remoteHostPort := remote.Listener.Addr().String()
+
+	dir := t.TempDir()
+	localFile := filepath.Join(dir, "local.txt")
+	if err := os.WriteFile(localFile, []byte("local"), 0o644); err != nil {
+		t.Fatalf("write local file: %v", err)
+	}
+
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "map_local",
+			Match: config.RawMatch{Host: "^" + originHost + "$", Path: `^/api/`},
+			Path:  localFile,
+		},
+		{
+			Type:  "map_remote",
+			Match: config.RawMatch{Host: "^" + originHost + "$", Path: `^/api/`},
+			URL:   "http://" + remoteHostPort + "/mirror/",
+		},
+	}, dir)
+
+	p := proxy.NewPipeline(rs, false)
+	result, runErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: originHost, Port: originPort,
+		Method: "GET", Path: "/api/v1/items", Header: make(http.Header),
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	if got, want := result.Source, "local"; got != want {
+		t.Fatalf("source: got %q, want %q", got, want)
+	}
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if got, want := string(body), "local"; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+}
+
 func TestWriteResponse(t *testing.T) {
 	fc := &proxy.FlowContext{
 		Logger:     testLogger(),

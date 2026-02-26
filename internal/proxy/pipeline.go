@@ -148,9 +148,11 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		dumpHeaders(fc.Logger, "request", fc.Header)
 	}
 
-	// Step 3: choose body source — map-local first-match, else upstream.
+	// Step 3: choose request routing — map-local first-match, else optional
+	// map-remote destination remap, then upstream.
 	var result *ResponseResult
 	var mapLocalOps *rules.Ops
+	var mapRemoteTarget *rules.MapRemoteTarget
 
 	if p.ruleset != nil {
 		for _, ml := range p.ruleset.MapLocal {
@@ -171,11 +173,24 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 				break
 			}
 		}
+
+		if result == nil {
+			for _, mr := range p.ruleset.MapRemote {
+				target, err := mr.Resolve(fm)
+				if err != nil {
+					return nil, fmt.Errorf("map-remote resolve: %w", err)
+				}
+				if target != nil {
+					mapRemoteTarget = target
+					break
+				}
+			}
+		}
 	}
 
 	if result == nil {
 		var err error
-		result, err = p.roundtrip(fc)
+		result, err = p.roundtrip(fc, mapRemoteTarget)
 		if err != nil {
 			return nil, err
 		}
@@ -296,14 +311,35 @@ func serveLocal(mlr *rules.MapLocalResult) (*ResponseResult, error) {
 
 // roundtrip performs an upstream HTTP request using fc's context and the
 // shared transport (connection pooling).
-func (p *Pipeline) roundtrip(fc *FlowContext) (*ResponseResult, error) {
+func (p *Pipeline) roundtrip(fc *FlowContext, mapRemoteTarget *rules.MapRemoteTarget) (*ResponseResult, error) {
+	scheme := fc.Scheme
 	host := fc.Host
-	if fc.Port != "" {
-		host = fc.Host + ":" + fc.Port
+	port := fc.Port
+	path := fc.Path
+	rawQuery := fc.RawQuery
+
+	if mapRemoteTarget != nil {
+		if mapRemoteTarget.Scheme != "" {
+			scheme = mapRemoteTarget.Scheme
+		}
+		if mapRemoteTarget.Host != "" {
+			host = mapRemoteTarget.Host
+		}
+		port = mapRemoteTarget.Port
+		if mapRemoteTarget.Path != "" {
+			path = mapRemoteTarget.Path
+		}
+		rawQuery = mapRemoteTarget.RawQuery
 	}
-	targetURL := fc.Scheme + "://" + host + fc.Path
-	if fc.RawQuery != "" {
-		targetURL += "?" + fc.RawQuery
+
+	targetHost := host
+	if port != "" {
+		targetHost = host + ":" + port
+	}
+
+	targetURL := scheme + "://" + targetHost + path
+	if rawQuery != "" {
+		targetURL += "?" + rawQuery
 	}
 
 	ctx := fc.Ctx

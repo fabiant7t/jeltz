@@ -35,6 +35,7 @@ type RawRule struct {
 	Type        string   `yaml:"type"`
 	Match       RawMatch `yaml:"match"`
 	Path        string   `yaml:"path,omitempty"`
+	URL         string   `yaml:"url,omitempty"`
 	IndexFile   string   `yaml:"index_file,omitempty"`
 	StatusCode  int      `yaml:"status_code,omitempty"`
 	ContentType string   `yaml:"content_type,omitempty"`

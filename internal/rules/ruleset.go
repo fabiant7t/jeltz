@@ -12,6 +12,7 @@ type RuleType string
 const (
 	RuleTypeHeader      RuleType = "header"
 	RuleTypeMapLocal    RuleType = "map_local"
+	RuleTypeMapRemote   RuleType = "map_remote"
 	RuleTypeBodyReplace RuleType = "body_replace"
 )
 
@@ -26,6 +27,7 @@ type HeaderRule struct {
 type RuleSet struct {
 	Headers     []*HeaderRule
 	MapLocal    []*MapLocalRule
+	MapRemote   []*MapRemoteRule
 	BodyReplace []*BodyReplaceRule
 }
 
@@ -47,6 +49,12 @@ func Compile(rawRules []config.RawRule, basePath string) (*RuleSet, error) {
 				return nil, fmt.Errorf("rules[%d] (map_local path %q): %w", i, raw.Path, err)
 			}
 			rs.MapLocal = append(rs.MapLocal, ml)
+		case string(RuleTypeMapRemote):
+			mr, err := CompileMapRemoteRule(raw)
+			if err != nil {
+				return nil, fmt.Errorf("rules[%d] (map_remote): %w", i, err)
+			}
+			rs.MapRemote = append(rs.MapRemote, mr)
 		case string(RuleTypeBodyReplace):
 			br, err := CompileBodyReplaceRule(raw)
 			if err != nil {
