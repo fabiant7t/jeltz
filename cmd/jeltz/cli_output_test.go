@@ -89,6 +89,15 @@ func TestRunCAInstallHint(t *testing.T) {
 	if !strings.Contains(out, p12Path) {
 		t.Fatalf("missing p12 path %q in output", p12Path)
 	}
+	if !strings.Contains(out, "Firefox (any OS):") {
+		t.Fatalf("missing Firefox section")
+	}
+	if !strings.Contains(out, "→ Authorities → Import → select "+certPath) {
+		t.Fatalf("Firefox hint should use cert path %q", certPath)
+	}
+	if strings.Contains(out, "Firefox (any OS):\n  Open Settings → Privacy & Security → Certificates → View Certificates\n  → Authorities → Import → select "+p12Path) {
+		t.Fatalf("Firefox hint should not suggest p12 path %q", p12Path)
+	}
 }
 
 func TestPrintBanner_BasicContent_NoColor(t *testing.T) {

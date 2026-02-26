@@ -99,7 +99,7 @@ On first run jeltz writes three files to its data directory:
 |---|---|
 | `ca.crt.pem` | PEM certificate — use with `security`, `certutil`, `update-ca-certificates` |
 | `ca.key.pem` | Private key — keep private |
-| `ca.p12` | PKCS#12 bundle (password: `jeltz`) — use on Windows or Firefox import |
+| `ca.p12` | PKCS#12 bundle (password: `jeltz`) — optional convenience bundle (Firefox uses `ca.crt.pem`) |
 
 The CA certificate must be trusted by your OS or browser before HTTPS interception works without certificate errors.
 

@@ -318,10 +318,10 @@ Windows:
 
 Firefox (any OS):
   Open Settings → Privacy & Security → Certificates → View Certificates
-  → Authorities → Import → select %s  (password: %s)
+  → Authorities → Import → select %s
 
 Chrome/Chromium (Linux/macOS uses the OS trust store above):
   Open Settings → Privacy and security → Security → Manage certificates
   → Authorities → Import → select %s
-`, caPath, p12Path, ca.P12Password, caPath, caPath, caPath, p12Path, p12Path, p12Path, ca.P12Password, caPath)
+`, caPath, p12Path, ca.P12Password, caPath, caPath, caPath, p12Path, p12Path, caPath, caPath)
 }
