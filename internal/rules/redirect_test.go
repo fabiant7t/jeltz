@@ -162,6 +162,52 @@ func TestRedirectRule_Resolve_NoRewriteReturnsNil(t *testing.T) {
 	}
 }
 
+func TestRedirectRule_Resolve_OmitsDefaultHTTPSPort(t *testing.T) {
+	r := compileRedirectRule(t, config.RawRule{
+		Type:       "redirect",
+		Match:      config.RawMatch{Host: `^example\.com$`, Path: `^/old/`},
+		Search:     "/old/",
+		SearchMode: "literal",
+		Replace:    "/new/",
+	})
+
+	result, err := r.Resolve(rules.FlowMeta{
+		Method: "GET", Scheme: "https", Host: "example.com", Port: "443", Path: "/old/x",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected redirect result")
+	}
+	if got, want := result.Location, "https://example.com/new/x"; got != want {
+		t.Fatalf("location: got %q, want %q", got, want)
+	}
+}
+
+func TestRedirectRule_Resolve_KeepNonDefaultPort(t *testing.T) {
+	r := compileRedirectRule(t, config.RawRule{
+		Type:       "redirect",
+		Match:      config.RawMatch{Host: `^example\.com$`, Path: `^/old/`},
+		Search:     "/old/",
+		SearchMode: "literal",
+		Replace:    "/new/",
+	})
+
+	result, err := r.Resolve(rules.FlowMeta{
+		Method: "GET", Scheme: "https", Host: "example.com", Port: "8443", Path: "/old/x",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected redirect result")
+	}
+	if got, want := result.Location, "https://example.com:8443/new/x"; got != want {
+		t.Fatalf("location: got %q, want %q", got, want)
+	}
+}
+
 func TestRedirectRule_Resolve_IncludesResponseOps(t *testing.T) {
 	r := compileRedirectRule(t, config.RawRule{
 		Type:       "redirect",

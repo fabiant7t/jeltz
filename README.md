@@ -352,7 +352,7 @@ Return an HTTP redirect to a rewritten URL for matching requests.
 ```
 
 **Behavior:**
-- Redirect rewrite input is the full request URL: `scheme://host[:port]/path?query`.
+- Redirect rewrite input is the full request URL: `scheme://host[:port]/path?query` (default ports are omitted: `https:443`, `http:80`).
 - `search_mode: regex` uses Go regex replacement semantics (`$1`, `$2`, ... supported in `replace`).
 - `search_mode: literal` treats `search` as an exact string.
 - Redirect is emitted only when the rewrite changes the input URL.

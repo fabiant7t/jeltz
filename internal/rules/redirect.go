@@ -125,7 +125,7 @@ func (r *RedirectRule) Apply(inputURL string) string {
 
 func fullFlowURL(fm FlowMeta) string {
 	host := fm.Host
-	if fm.Port != "" {
+	if includePortInURL(fm.Scheme, fm.Port) {
 		host = fm.Host + ":" + fm.Port
 	}
 
@@ -139,4 +139,17 @@ func fullFlowURL(fm FlowMeta) string {
 		u += "?" + fm.RawQuery
 	}
 	return u
+}
+
+func includePortInURL(scheme, port string) bool {
+	if port == "" {
+		return false
+	}
+	if scheme == "https" && port == "443" {
+		return false
+	}
+	if scheme == "http" && port == "80" {
+		return false
+	}
+	return true
 }
