@@ -17,6 +17,7 @@ HTTP/2 is fully supported on the client-to-proxy leg of HTTPS connections. The c
 **Use cases:**
 - Serve local mock files instead of real upstream responses (`map_local`)
 - Inject, replace, or strip request and response headers
+- Search/replace response body payloads (`body_replace`)
 - Strip tracking cookies, GDPR consent headers, etc.
 - Inspect traffic with structured logging
 
@@ -163,14 +164,15 @@ rules: []                    # ordered list of rules
 
 ## Rules
 
-Rules are evaluated in file order. All matching header rules apply to every request/response. For `map_local`, the first matching rule wins.
+Rules are evaluated in file order. All matching header rules apply to every request/response. For `map_local`, the first matching rule wins. Matching `body_replace` rules are applied in file order.
 
 ### Pipeline order (per request)
 
 1. Apply matching **request** header rules (delete then set)
 2. Check `map_local` rules (first match wins) — or proxy to upstream
-3. Apply matching **response** header rules (delete then set)
-4. Apply `map_local` rule's own `response` ops (after global response rules)
+3. Apply matching **body_replace** rules (replace-all, in file order)
+4. Apply matching **response** header rules (delete then set)
+5. Apply `map_local` rule's own `response` ops (after global response rules)
 
 ---
 
@@ -252,6 +254,30 @@ Content-Type is determined by: explicit `content_type` → file extension → `C
 
 ---
 
+### Rule: `body_replace`
+
+Search/replace response body payload content for matching traffic.
+
+```yaml
+- type: body_replace
+  match:
+    methods: ["GET"]
+    host: "^api\\.example\\.com$"
+    path: "^/v1/"
+  search: "\"featureFlag\":false"  # regex by default
+  replace: "\"featureFlag\":true"
+  search_mode: regex               # optional: regex (default) or literal
+  content_type: "^application/json"  # optional regex filter
+```
+
+**Behavior:**
+- `search_mode: regex` uses Go regex replacement semantics (`$1`, `$2`, ... supported in `replace`).
+- `search_mode: literal` treats `search` as an exact string.
+- Replacement is applied to **all** matches.
+- `content_type` is optional; if set, only responses whose `Content-Type` header matches the regex are rewritten.
+
+---
+
 ## Full example config
 
 ```yaml
@@ -312,6 +338,16 @@ rules:
       path: "^/v1/features"
     path: "mocks/features.json"
     content_type: "application/json"
+
+  # Rewrite an API field in JSON responses
+  - type: body_replace
+    match:
+      methods: ["GET"]
+      host: "^api\\.example\\.com$"
+      path: "^/v1/features"
+    search: "\"enabled\":false"
+    replace: "\"enabled\":true"
+    content_type: "^application/json"
 ```
 
 ---

@@ -10,8 +10,9 @@ import (
 type RuleType string
 
 const (
-	RuleTypeHeader   RuleType = "header"
-	RuleTypeMapLocal RuleType = "map_local"
+	RuleTypeHeader      RuleType = "header"
+	RuleTypeMapLocal    RuleType = "map_local"
+	RuleTypeBodyReplace RuleType = "body_replace"
 )
 
 // HeaderRule is a compiled header rule.
@@ -23,8 +24,9 @@ type HeaderRule struct {
 
 // RuleSet holds all compiled rules in file order.
 type RuleSet struct {
-	Headers  []*HeaderRule
-	MapLocal []*MapLocalRule
+	Headers     []*HeaderRule
+	MapLocal    []*MapLocalRule
+	BodyReplace []*BodyReplaceRule
 }
 
 // Compile compiles all raw rules from config. basePath is used to resolve
@@ -45,6 +47,12 @@ func Compile(rawRules []config.RawRule, basePath string) (*RuleSet, error) {
 				return nil, fmt.Errorf("rules[%d] (map_local path %q): %w", i, raw.Path, err)
 			}
 			rs.MapLocal = append(rs.MapLocal, ml)
+		case string(RuleTypeBodyReplace):
+			br, err := CompileBodyReplaceRule(raw)
+			if err != nil {
+				return nil, fmt.Errorf("rules[%d] (body_replace): %w", i, err)
+			}
+			rs.BodyReplace = append(rs.BodyReplace, br)
 		default:
 			return nil, fmt.Errorf("rules[%d]: unknown type %q", i, raw.Type)
 		}

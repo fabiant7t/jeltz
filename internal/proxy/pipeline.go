@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fabiant7t/jeltz/internal/httpx"
@@ -179,7 +181,32 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		}
 	}
 
-	// Step 4: apply matching response header rules.
+	// Step 4: apply matching body_replace rules in file order.
+	if p.ruleset != nil && len(p.ruleset.BodyReplace) > 0 && result.Body != nil &&
+		isIdentityContentEncoding(result.Headers.Values("Content-Encoding")) {
+		contentType := result.Headers.Get("Content-Type")
+		var matched []*rules.BodyReplaceRule
+		for _, br := range p.ruleset.BodyReplace {
+			if br.Matches(fm, contentType) {
+				matched = append(matched, br)
+			}
+		}
+		if len(matched) > 0 {
+			bodyData, err := io.ReadAll(result.Body)
+			result.Body.Close() //nolint:errcheck
+			if err != nil {
+				return nil, fmt.Errorf("reading response body for body_replace: %w", err)
+			}
+			for _, br := range matched {
+				bodyData = br.Apply(bodyData)
+			}
+			result.Body = io.NopCloser(bytes.NewReader(bodyData))
+			result.Headers.Del("Content-Length")
+			result.Headers.Set("Content-Length", strconv.Itoa(len(bodyData)))
+		}
+	}
+
+	// Step 5: apply matching response header rules.
 	if p.ruleset != nil {
 		for _, hr := range p.ruleset.Headers {
 			if hr.Match.Matches(fm) {
@@ -188,7 +215,7 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 		}
 	}
 
-	// Step 5: apply map-local response ops after global response rules.
+	// Step 6: apply map-local response ops after global response rules.
 	if mapLocalOps != nil {
 		mapLocalOps.Apply(result.Headers)
 	}
@@ -200,6 +227,23 @@ func (p *Pipeline) Run(fc *FlowContext) (*ResponseResult, error) {
 	}
 
 	return result, nil
+}
+
+func isIdentityContentEncoding(values []string) bool {
+	if len(values) == 0 {
+		return true
+	}
+	for _, v := range values {
+		parts := strings.Split(v, ",")
+		for _, p := range parts {
+			token := strings.TrimSpace(p)
+			if token == "" || strings.EqualFold(token, "identity") {
+				continue
+			}
+			return false
+		}
+	}
+	return true
 }
 
 func emptyResult(status int, source string) *ResponseResult {

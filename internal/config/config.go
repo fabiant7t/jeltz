@@ -38,6 +38,9 @@ type RawRule struct {
 	IndexFile   string   `yaml:"index_file,omitempty"`
 	StatusCode  int      `yaml:"status_code,omitempty"`
 	ContentType string   `yaml:"content_type,omitempty"`
+	Search      string   `yaml:"search,omitempty"`
+	Replace     string   `yaml:"replace,omitempty"`
+	SearchMode  string   `yaml:"search_mode,omitempty"`
 	Request     *RawOps  `yaml:"request,omitempty"`
 	Response    *RawOps  `yaml:"response,omitempty"`
 }

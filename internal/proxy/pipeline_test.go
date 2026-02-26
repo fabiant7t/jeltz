@@ -422,6 +422,160 @@ func TestPipeline_MapLocalResponseOps_AfterGlobalResponse(t *testing.T) {
 	}
 }
 
+func TestPipeline_BodyReplace_RegexAndConfigOrder(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("foo1 foo2"))
+	}))
+	defer upstream.Close()
+
+	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:    "body_replace",
+			Match:   config.RawMatch{Host: "^" + host + "$", Path: `^/`},
+			Search:  `foo(\d+)`,
+			Replace: `bar-$1`,
+		},
+		{
+			Type:    "body_replace",
+			Match:   config.RawMatch{Host: "^" + host + "$", Path: `^/`},
+			Search:  "bar-",
+			Replace: "id-",
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+	result, runErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "GET", Path: "/", Header: make(http.Header),
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	if result.Status != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", result.Status, http.StatusOK)
+	}
+
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if got, want := string(body), "id-1 id-2"; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+	if got, want := result.Headers.Get("Content-Length"), "9"; got != want {
+		t.Fatalf("Content-Length: got %q, want %q", got, want)
+	}
+}
+
+func TestPipeline_BodyReplace_ContentTypeFilterAndLiteralMode(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/text":
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte("a+b a+b"))
+		case "/json":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"msg":"a+b"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer upstream.Close()
+
+	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:        "body_replace",
+			Match:       config.RawMatch{Host: "^" + host + "$", Path: `^/`},
+			Search:      "a+b",
+			SearchMode:  "literal",
+			Replace:     "z",
+			ContentType: `^text/`,
+		},
+	}, t.TempDir())
+
+	p := proxy.NewPipeline(rs, false)
+
+	textResult, textErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "GET", Path: "/text", Header: make(http.Header),
+	})
+	if textErr != nil {
+		t.Fatalf("Run /text: %v", textErr)
+	}
+	textBody, _ := io.ReadAll(textResult.Body)
+	if got, want := string(textBody), "z z"; got != want {
+		t.Fatalf("/text body: got %q, want %q", got, want)
+	}
+
+	jsonResult, jsonErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "GET", Path: "/json", Header: make(http.Header),
+	})
+	if jsonErr != nil {
+		t.Fatalf("Run /json: %v", jsonErr)
+	}
+	jsonBody, _ := io.ReadAll(jsonResult.Body)
+	if got, want := string(jsonBody), `{"msg":"a+b"}`; got != want {
+		t.Fatalf("/json body: got %q, want %q", got, want)
+	}
+}
+
+func TestPipeline_BodyReplace_AppliesToMapLocal(t *testing.T) {
+	upstream := httptest.NewServer(http.NotFoundHandler())
+	defer upstream.Close()
+
+	host, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	dir := t.TempDir()
+	file := filepath.Join(dir, "hello.txt")
+	if err := os.WriteFile(file, []byte("foo map"), 0o644); err != nil {
+		t.Fatalf("write map_local file: %v", err)
+	}
+
+	rs := makeRuleSet(t, []config.RawRule{
+		{
+			Type:  "map_local",
+			Match: config.RawMatch{Host: "^" + host + "$", Path: `^/local$`},
+			Path:  file,
+		},
+		{
+			Type:    "body_replace",
+			Match:   config.RawMatch{Host: "^" + host + "$", Path: `^/`},
+			Search:  "foo",
+			Replace: "bar",
+		},
+	}, dir)
+
+	p := proxy.NewPipeline(rs, false)
+
+	localResult, localErr := p.Run(&proxy.FlowContext{
+		Logger: testLogger(), Scheme: "http", Host: host, Port: port,
+		Method: "GET", Path: "/local", Header: make(http.Header),
+	})
+	if localErr != nil {
+		t.Fatalf("Run /local: %v", localErr)
+	}
+	localBody, _ := io.ReadAll(localResult.Body)
+	if got, want := string(localBody), "bar map"; got != want {
+		t.Fatalf("/local body: got %q, want %q", got, want)
+	}
+}
+
 func TestWriteResponse(t *testing.T) {
 	fc := &proxy.FlowContext{
 		Logger:     testLogger(),
